@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 3001;
 
 // Configure multer for file uploads
 const upload = multer({
-  dest: '/tmp',
+  dest: path.join(__dirname, '../tmp'),
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
@@ -33,7 +33,7 @@ const upload = multer({
 
 // Configure multer for logo uploads
 const logoUpload = multer({
-  dest: '/tmp',
+  dest: path.join(__dirname, '../tmp'),
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit for images
   },
@@ -956,6 +956,22 @@ app.put('/api/reports/:sessionId/:reportId', (req, res) => {
 app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Unhandled error:', error);
   res.status(500).json({ error: 'Internal server error' });
+});
+
+// Global error handler middleware - ensures all errors return JSON
+app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Global error handler:', error);
+  
+  // If response already sent, delegate to default Express error handler
+  if (res.headersSent) {
+    return next(error);
+  }
+  
+  // Return JSON error response
+  return res.status(error.status || 500).json({
+    error: error.message || 'Internal server error',
+    details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+  });
 });
 
 // 404 handler
