@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 3001;
 
 // Configure multer for file uploads
 const upload = multer({
-  dest: path.join(__dirname, '../tmp'),
+  dest: '/tmp',
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
@@ -33,7 +33,7 @@ const upload = multer({
 
 // Configure multer for logo uploads
 const logoUpload = multer({
-  dest: path.join(__dirname, '../tmp'),
+  dest: '/tmp',
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit for images
   },
@@ -48,7 +48,7 @@ const logoUpload = multer({
 
 // Configure multer specifically for image uploads in report sections
 const imageUpload = multer({
-  dest: path.join(__dirname, '../tmp'),
+  dest: '/tmp',
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit for images
   },
