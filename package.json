@@ -4,6 +4,8 @@
   "description": "A full-stack application for generating AI-powered enterprise architecture documents.",
   "main": "index.js",
   "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "dev": "cd frontend && npm run dev",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
