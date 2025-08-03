@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "A full-stack application for generating AI-powered enterprise architecture documents.",
   "main": "index.js",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "build": "cd frontend && npm install && npm run build",
     "dev": "cd frontend && npm run dev",
