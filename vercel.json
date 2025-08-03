@@ -1,15 +1,16 @@
 {
+  "version": 2,
   "buildCommand": "cd frontend && npm ci && npm run build",
   "outputDirectory": "frontend/dist",
   "functions": {
-    "backend/api/index.ts": {
-      "runtime": "@vercel/node@3"
+    "backend/api/*.ts": {
+      "runtime": "@vercel/node@20.x"
     }
   },
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/backend/api/index.ts"
+      "destination": "/backend/api/index"
     },
     {
       "source": "/(.*)",
@@ -17,4 +18,3 @@
     }
   ]
 }
-
