@@ -11,6 +11,33 @@
     "dev": "cd frontend && npm run dev",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "dependencies": {
+    "@sparticuz/chromium": "^119.0.2",
+    "cors": "^2.8.5",
+    "csv-parser": "^3.2.0",
+    "docx": "^8.5.0",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "jsdom": "^25.0.1",
+    "jspdf": "^2.5.1",
+    "morgan": "^1.10.1",
+    "multer": "^2.0.2",
+    "openai": "^5.11.0",
+    "pdf-parse": "^1.1.1",
+    "puppeteer-core": "^19.11.1",
+    "sharp": "^0.33.5",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/jsdom": "^21.1.7",
+    "@types/morgan": "^1.9.10",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^24.1.0",
+    "typescript": "^5.9.2"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Hammton/AI-DocWriter.git"
