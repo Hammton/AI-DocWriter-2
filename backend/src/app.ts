@@ -372,15 +372,15 @@ app.get('/api/reports/:sessionId/:reportId/download', async (req, res) => {
         pdfBuffer = await generateReportPDFBufferFallback(report);
         console.log('Fallback PDF generation successful');
       } catch (fallbackError) {
-        console.warn('Fallback PDF generation failed, trying file-based approach:', fallbackError);
+        console.warn('Fallback PDF generation failed, trying simple PDF generation:', fallbackError);
         
         // Try simple PDF generation (no Chromium required)
         try {
-          console.warn('Trying simple PDF generation as final fallback');
+          console.log('Attempting simple PDF generation with jsPDF (no browser required)');
           pdfBuffer = await generateSimplePDFBuffer(report);
-          console.log('Simple PDF generation successful');
+          console.log('Simple PDF generation successful - using jsPDF');
         } catch (simpleError) {
-          console.warn('Simple PDF generation failed, trying file-based approach:', simpleError);
+          console.error('Simple PDF generation failed, trying file-based approach as last resort:', simpleError);
           
           // Final fallback to file-based approach for local development
           try {
