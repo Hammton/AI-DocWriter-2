@@ -3,7 +3,7 @@ import chromium from '@sparticuz/chromium';
 import fs from 'fs';
 import path from 'path';
 import { GeneratedReport } from './reportGenerator';
-const htmlPdf = require('html-pdf-node');
+
 import { jsPDF } from 'jspdf';
 import { JSDOM } from 'jsdom';
 
@@ -11,7 +11,7 @@ export async function generatePDFFromHTML(htmlContent: string, outputPath: strin
   let browser;
 
   try {
-    const isVercel = process.env.VERCEL === '1';
+    const isVercel = process.env.VERCEL === '1' || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 
     browser = await puppeteer.launch({
       args: isVercel ? chromium.args : [
