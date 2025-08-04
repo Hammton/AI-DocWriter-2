@@ -35,7 +35,17 @@ export class DocumentExporter {
     const isVercel = process.env.VERCEL === '1';
     
     const browser = await puppeteer.launch({
-      args: isVercel ? chromium.args : [
+      args: isVercel ? [
+        ...chromium.args,
+        '--disable-gpu',
+        '--disable-dev-shm-usage',
+        '--disable-setuid-sandbox',
+        '--no-first-run',
+        '--no-sandbox',
+        '--no-zygote',
+        '--single-process',
+        '--disable-extensions'
+      ] : [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
@@ -48,6 +58,7 @@ export class DocumentExporter {
       defaultViewport: chromium.defaultViewport,
       executablePath: isVercel ? await chromium.executablePath() : undefined,
       headless: chromium.headless,
+      ignoreDefaultArgs: isVercel ? ['--disable-extensions'] : false,
     });
 
     try {
