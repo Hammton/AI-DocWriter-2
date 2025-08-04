@@ -109,30 +109,28 @@ export async function generateReportPDFBuffer(report: GeneratedReport): Promise<
     // Set viewport for consistent rendering
     await page.setViewport({ width: 1200, height: 1600, deviceScaleFactor: 1 });
 
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 })
+    await page.setContent(html, { waitUntil: 'networkidle2', timeout: 45000 })
 
     console.log('🎨 Applying CSS for styling preservation...')
+
+    const publicCssUrl = process.env.PUBLIC_CSS_URL
+    if (publicCssUrl) {
+      try {
+        await page.addStyleTag({ url: publicCssUrl })
+        console.log(`🧩 Loaded external CSS from ${publicCssUrl}`)
+      } catch (e) {
+        console.warn('⚠️ Failed to load PUBLIC_CSS_URL CSS:', e)
+      }
+    }
 
     // Add CSS to ensure colors and backgrounds are preserved - inspired by openhtmltopdf
     await page.addStyleTag({
       content: `
-        * {
-          -webkit-print-color-adjust: exact !important;
-          color-adjust: exact !important;
-          print-color-adjust: exact !important;
-        }
-        /* Force all elements to preserve their styling in PDF */
-        body, div, h1, h2, h3, h4, h5, h6, p, table, th, td, span {
-          -webkit-print-color-adjust: exact !important;
-          color-adjust: exact !important;
-          print-color-adjust: exact !important;
-        }
-        /* Ensure borders and backgrounds are visible */
-        .header, .metadata, .section-title, .table th, .highlight {
-          -webkit-print-color-adjust: exact !important;
-          color-adjust: exact !important;
-          print-color-adjust: exact !important;
-        }
+        @page { size: A4; margin: 20mm 15mm 20mm 15mm; }
+        html, body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        body, div, h1, h2, h3, h4, h5, h6, p, table, th, td, span { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        .header, .metadata, .section-title, .table th, .highlight { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       `
     });
 
@@ -146,8 +144,8 @@ export async function generateReportPDFBuffer(report: GeneratedReport): Promise<
       printBackground: true,
       margin: { top: '20mm', right: '15mm', bottom: '20mm', left: '15mm' },
       displayHeaderFooter: false,
-      timeout: 30000,
-      preferCSSPageSize: true, // Use CSS @page rules
+      timeout: 45000,
+      preferCSSPageSize: true,
     })
 
     console.log('✅ PDF generation successful!')
