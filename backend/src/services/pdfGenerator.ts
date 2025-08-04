@@ -1,4 +1,5 @@
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import fs from 'fs';
 import path from 'path';
 import { GeneratedReport } from './reportGenerator';
@@ -7,9 +8,10 @@ export async function generatePDFFromHTML(htmlContent: string, outputPath: strin
   let browser;
   
   try {
+    const isVercel = process.env.VERCEL === '1';
+    
     browser = await puppeteer.launch({
-      headless: true,
-      args: [
+      args: isVercel ? chromium.args : [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
@@ -18,7 +20,10 @@ export async function generatePDFFromHTML(htmlContent: string, outputPath: strin
         '--no-zygote',
         '--single-process',
         '--disable-gpu'
-      ]
+      ],
+      defaultViewport: chromium.defaultViewport,
+      executablePath: isVercel ? await chromium.executablePath() : undefined,
+      headless: chromium.headless,
     });
     
     const page = await browser.newPage();
@@ -76,9 +81,8 @@ export async function generateReportPDFBuffer(report: GeneratedReport): Promise<
     // Check if we're running in a Vercel environment
     const isVercel = process.env.VERCEL === '1';
     
-    const launchOptions = {
-      headless: true,
-      args: [
+    browser = await puppeteer.launch({
+      args: isVercel ? chromium.args : [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
@@ -89,18 +93,11 @@ export async function generateReportPDFBuffer(report: GeneratedReport): Promise<
         '--disable-gpu',
         '--disable-web-security',
         '--disable-features=VizDisplayCompositor'
-      ]
-    };
-    
-    // Add additional args for serverless environments
-    if (isVercel) {
-      launchOptions.args.push(
-        '--memory-pressure-off',
-        '--max_old_space_size=4096'
-      );
-    }
-    
-    browser = await puppeteer.launch(launchOptions);
+      ],
+      defaultViewport: chromium.defaultViewport,
+      executablePath: isVercel ? await chromium.executablePath() : undefined,
+      headless: chromium.headless,
+    });
     
     const page = await browser.newPage();
     
@@ -132,7 +129,7 @@ export async function generateReportPDFBuffer(report: GeneratedReport): Promise<
       displayHeaderFooter: false,
     });
     
-    return pdfBuffer;
+    return Buffer.from(pdfBuffer);
     
   } catch (error) {
     console.error('Error generating PDF buffer:', error);

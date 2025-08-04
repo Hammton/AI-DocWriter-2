@@ -392,7 +392,7 @@ app.get('/api/reports/:sessionId/:reportId/download', async (req, res) => {
 
         return; // Explicit return since we're streaming the response
       } catch (fileError) {
-        throw new Error(`Both PDF generation methods failed. Buffer error: ${bufferError.message}, File error: ${fileError.message}`);
+        throw new Error(`Both PDF generation methods failed. Buffer error: ${bufferError instanceof Error ? bufferError.message : String(bufferError)}, File error: ${fileError instanceof Error ? fileError.message : String(fileError)}`);
       }
     }
 

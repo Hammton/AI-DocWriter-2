@@ -608,7 +608,7 @@ CRITICAL INSTRUCTIONS:
           <h2 className="text-xl font-semibold text-gray-900 mb-2">No Reports Found</h2>
           <p className="text-gray-600 mb-4">No reports were found for this session.</p>
           <button
-          onClick={handleBackToStart}
+            onClick={handleBackToStart}
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
           >
             Generate New Reports
