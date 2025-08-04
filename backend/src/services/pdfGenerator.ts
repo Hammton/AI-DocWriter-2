@@ -1,4 +1,3 @@
-import puppeteer from 'puppeteer'
 import fs from 'fs'
 import path from 'path'
 import { GeneratedReport } from './reportGenerator'
@@ -10,10 +9,25 @@ function isServerless() {
 }
 
 async function launchBrowser() {
-  return await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  })
+  if (isServerless()) {
+    // Use puppeteer-core with chromium for serverless environments
+    const puppeteer = await import('puppeteer-core')
+    const chromium = await import('@sparticuz/chromium')
+
+    return await puppeteer.default.launch({
+      args: chromium.default.args,
+      executablePath: await chromium.default.executablePath(),
+      defaultViewport: chromium.default.defaultViewport,
+      headless: chromium.default.headless,
+    })
+  } else {
+    // Use regular puppeteer for local development
+    const puppeteer = await import('puppeteer')
+    return await puppeteer.default.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    })
+  }
 }
 
 export async function generatePDFFromHTML(htmlContent: string, outputPath: string): Promise<void> {
@@ -70,7 +84,7 @@ export async function generateReportPDFBuffer(report: GeneratedReport): Promise<
 
     // Set viewport for consistent rendering
     await page.setViewport({ width: 1200, height: 1600, deviceScaleFactor: 1 });
-    
+
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 })
 
     // Add CSS to ensure colors and backgrounds are preserved - inspired by openhtmltopdf
