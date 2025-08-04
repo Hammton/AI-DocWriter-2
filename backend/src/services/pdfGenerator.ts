@@ -316,3 +316,96 @@ export async function generateSimplePDFBuffer(report: GeneratedReport): Promise<
     throw error;
   }
 }
+
+// Ultra-simple PDF generation using JSDOM + jsPDF (guaranteed to work in serverless)
+export async function generateUltraSimplePDFBuffer(report: GeneratedReport): Promise<Buffer> {
+  try {
+    console.log('Using ultra-simple PDF generation (JSDOM + jsPDF)');
+
+    const doc = new jsPDF();
+
+    // Replace placeholders with actual values
+    const applicationData = {
+      applicationName: report.applicationName || 'Application Name',
+      organizationName: report.organizationName || 'Organization Name',
+      applicationId: report.metadata.applicationId || 'Application ID'
+    };
+
+    // Parse HTML content to extract text using JSDOM
+    const dom = new JSDOM(report.htmlContent);
+    const document = dom.window.document;
+
+    // Extract text content from HTML with better formatting
+    let textContent = '';
+    
+    // Process different elements for better structure
+    const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    const paragraphs = document.querySelectorAll('p');
+    const lists = document.querySelectorAll('ul, ol');
+
+    // Add headings
+    headings.forEach(heading => {
+      textContent += '\n' + heading.textContent?.trim() + '\n';
+    });
+
+    // Add paragraphs
+    paragraphs.forEach(p => {
+      textContent += '\n' + (p.textContent?.trim() || '') + '\n';
+    });
+
+    // Add lists
+    lists.forEach(list => {
+      const items = list.querySelectorAll('li');
+      items.forEach(item => {
+        textContent += '• ' + (item.textContent?.trim() || '') + '\n';
+      });
+    });
+
+    // Fallback to full text if structured extraction didn't work
+    if (!textContent.trim()) {
+      textContent = document.body.textContent || document.body.innerText || 'No content available';
+    }
+
+    // Set up PDF document with header
+    doc.setFontSize(18);
+    doc.text(`${applicationData.applicationName}`, 20, 20);
+    
+    doc.setFontSize(16);
+    doc.text('Application Profile Report', 20, 35);
+
+    doc.setFontSize(12);
+    doc.text(`Organization: ${applicationData.organizationName}`, 20, 50);
+    doc.text(`Application ID: ${applicationData.applicationId}`, 20, 60);
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 70);
+
+    // Add a line separator
+    doc.line(20, 80, 190, 80);
+
+    // Add content with proper text wrapping and pagination
+    doc.setFontSize(10);
+    const lines = doc.splitTextToSize(textContent.trim(), 170);
+    
+    let yPosition = 90;
+    const pageHeight = doc.internal.pageSize.height;
+    const margin = 20;
+
+    for (let i = 0; i < lines.length; i++) {
+      if (yPosition > pageHeight - margin) {
+        doc.addPage();
+        yPosition = margin;
+      }
+      doc.text(lines[i], 20, yPosition);
+      yPosition += 5;
+    }
+
+    // Convert to buffer
+    const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+
+    console.log('Ultra-simple PDF generation successful');
+    return pdfBuffer;
+
+  } catch (error) {
+    console.error('Error in ultra-simple PDF generation:', error);
+    throw error;
+  }
+}
