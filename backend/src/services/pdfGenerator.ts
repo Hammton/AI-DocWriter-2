@@ -337,7 +337,7 @@ export async function generateUltraSimplePDFBuffer(report: GeneratedReport): Pro
 
     // Extract text content from HTML with better formatting
     let textContent = '';
-    
+
     // Process different elements for better structure
     const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
     const paragraphs = document.querySelectorAll('p');
@@ -369,7 +369,7 @@ export async function generateUltraSimplePDFBuffer(report: GeneratedReport): Pro
     // Set up PDF document with header
     doc.setFontSize(18);
     doc.text(`${applicationData.applicationName}`, 20, 20);
-    
+
     doc.setFontSize(16);
     doc.text('Application Profile Report', 20, 35);
 
@@ -384,7 +384,7 @@ export async function generateUltraSimplePDFBuffer(report: GeneratedReport): Pro
     // Add content with proper text wrapping and pagination
     doc.setFontSize(10);
     const lines = doc.splitTextToSize(textContent.trim(), 170);
-    
+
     let yPosition = 90;
     const pageHeight = doc.internal.pageSize.height;
     const margin = 20;
