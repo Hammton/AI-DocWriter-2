@@ -21,12 +21,26 @@ async function launchBrowser() {
       headless: chromium.default.headless,
     })
   } else {
-    // Use regular puppeteer for local development
-    const puppeteer = await import('puppeteer')
-    return await puppeteer.default.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    })
+    // Use regular puppeteer for local development, fallback to puppeteer-core
+    try {
+      // Try to dynamically import puppeteer (might not be available in all environments)
+      const puppeteer = await import('puppeteer').catch(() => null)
+      if (puppeteer) {
+        return await puppeteer.default.launch({
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox']
+        })
+      }
+      throw new Error('Puppeteer not available')
+    } catch (error) {
+      // Fallback to puppeteer-core if puppeteer is not available
+      console.warn('Regular puppeteer not available, falling back to puppeteer-core')
+      const puppeteerCore = await import('puppeteer-core')
+      return await puppeteerCore.default.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      })
+    }
   }
 }
 
@@ -69,7 +83,11 @@ export async function generateReportPDF(report: GeneratedReport): Promise<string
 export async function generateReportPDFBuffer(report: GeneratedReport): Promise<Buffer> {
   let browser
   try {
-    const page = await (browser = await launchBrowser()).newPage()
+    console.log(`🚀 Starting PDF generation for report: ${report.applicationName}`)
+    console.log(`📊 Environment: ${isServerless() ? 'Serverless (Vercel)' : 'Local Development'}`)
+
+    browser = await launchBrowser()
+    const page = await browser.newPage()
 
     const applicationData = {
       applicationName: report.applicationName,
@@ -82,10 +100,14 @@ export async function generateReportPDFBuffer(report: GeneratedReport): Promise<
       .replace(/\{organization_name\}/g, applicationData.organizationName || 'Organization Name')
       .replace(/\{application_id\}/g, applicationData.applicationId || 'Application ID')
 
+    console.log('🎨 Setting viewport and loading HTML content...')
+
     // Set viewport for consistent rendering
     await page.setViewport({ width: 1200, height: 1600, deviceScaleFactor: 1 });
 
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 })
+
+    console.log('🎨 Applying CSS for styling preservation...')
 
     // Add CSS to ensure colors and backgrounds are preserved - inspired by openhtmltopdf
     await page.addStyleTag({
@@ -113,6 +135,8 @@ export async function generateReportPDFBuffer(report: GeneratedReport): Promise<
     // Wait a bit for styles to be applied
     await new Promise(resolve => setTimeout(resolve, 1000));
 
+    console.log('📄 Generating PDF with enhanced styling...')
+
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
@@ -122,9 +146,16 @@ export async function generateReportPDFBuffer(report: GeneratedReport): Promise<
       preferCSSPageSize: true, // Use CSS @page rules
     })
 
+    console.log('✅ PDF generation successful!')
     return Buffer.from(pdfBuffer)
+  } catch (error) {
+    console.error('❌ PDF generation failed:', error)
+    throw error
   } finally {
-    if (browser) await browser.close()
+    if (browser) {
+      await browser.close()
+      console.log('🔒 Browser closed')
+    }
   }
 }
 
