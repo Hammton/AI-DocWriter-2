@@ -8,7 +8,7 @@ import fs from 'fs';
 import multer from 'multer';
 import { parseCSVFile, mapApplicationDataToTemplate, ApplicationData } from './services/csvParser';
 import { loadTemplate, generateReportContent, GeneratedReport } from './services/reportGenerator';
-import { generateReportPDF, generateReportPDFBuffer, generateReportPDFBufferFallback, generateSimplePDFBuffer, generateUltraSimplePDFBuffer, getGeneratedReportsDir } from './services/pdfGenerator';
+import { generateReportPDF, generateReportPDFBuffer, generateSimplePDFBuffer, generateUltraSimplePDFBuffer, getGeneratedReportsDir } from './services/pdfGenerator';
 import { DocumentExporter, ExportOptions } from './services/documentExporter';
 
 dotenv.config();
@@ -368,56 +368,48 @@ app.get('/api/reports/:sessionId/:reportId/download', async (req, res) => {
       console.log('Ultra-simple PDF generation successful');
     } catch (ultraSimpleError) {
       console.warn('Ultra-simple PDF generation failed, trying Puppeteer methods:', ultraSimpleError);
-      
+
       // Try Puppeteer-based methods as fallback
       try {
         pdfBuffer = await generateReportPDFBuffer(report);
         console.log('Puppeteer PDF generation successful');
       } catch (bufferError) {
         console.warn('Puppeteer PDF buffer generation failed, trying fallback method:', bufferError);
-        
-        // Try the fallback PDF generation method
+
+        // Try simple PDF generation (no Chromium required)
         try {
-          pdfBuffer = await generateReportPDFBufferFallback(report);
-          console.log('Fallback PDF generation successful');
-        } catch (fallbackError) {
-          console.warn('Fallback PDF generation failed, trying simple PDF generation:', fallbackError);
-          
-          // Try simple PDF generation (no Chromium required)
+          console.log('Attempting simple PDF generation with jsPDF (no browser required)');
+          pdfBuffer = await generateSimplePDFBuffer(report);
+          console.log('Simple PDF generation successful - using jsPDF');
+        } catch (simpleError) {
+          console.error('All PDF generation methods failed, trying file-based approach as last resort:', simpleError);
+
+          // Final fallback to file-based approach for local development
           try {
-            console.log('Attempting simple PDF generation with jsPDF (no browser required)');
-            pdfBuffer = await generateSimplePDFBuffer(report);
-            console.log('Simple PDF generation successful - using jsPDF');
-          } catch (simpleError) {
-            console.error('All PDF generation methods failed, trying file-based approach as last resort:', simpleError);
-          
-            // Final fallback to file-based approach for local development
-            try {
-              const pdfPath = await generateReportPDF(report);
-              const filename = `${report.applicationName.replace(/[^a-zA-Z0-9]/g, '_')}_Report.pdf`;
+            const pdfPath = await generateReportPDF(report);
+            const filename = `${report.applicationName.replace(/[^a-zA-Z0-9]/g, '_')}_Report.pdf`;
 
-              // Send PDF file
-              res.setHeader('Content-Type', 'application/pdf');
-              res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            // Send PDF file
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
-              const pdfStream = fs.createReadStream(pdfPath);
-              pdfStream.pipe(res);
+            const pdfStream = fs.createReadStream(pdfPath);
+            pdfStream.pipe(res);
 
-              // Clean up PDF file after sending
-              pdfStream.on('end', () => {
-                setTimeout(() => {
-                  try {
-                    fs.unlinkSync(pdfPath);
-                  } catch (error) {
-                    console.error('Error cleaning up PDF file:', error);
-                  }
-                }, 5000);
-              });
+            // Clean up PDF file after sending
+            pdfStream.on('end', () => {
+              setTimeout(() => {
+                try {
+                  fs.unlinkSync(pdfPath);
+                } catch (error) {
+                  console.error('Error cleaning up PDF file:', error);
+                }
+              }, 5000);
+            });
 
-              return; // Explicit return since we're streaming the response
-            } catch (fileError) {
-              throw new Error(`All PDF generation methods failed. Ultra-simple error: ${ultraSimpleError instanceof Error ? ultraSimpleError.message : String(ultraSimpleError)}, Buffer error: ${bufferError instanceof Error ? bufferError.message : String(bufferError)}, Fallback error: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}, Simple error: ${simpleError instanceof Error ? simpleError.message : String(simpleError)}, File error: ${fileError instanceof Error ? fileError.message : String(fileError)}`);
-            }
+            return; // Explicit return since we're streaming the response
+          } catch (fileError) {
+            throw new Error(`All PDF generation methods failed. Ultra-simple error: ${ultraSimpleError instanceof Error ? ultraSimpleError.message : String(ultraSimpleError)}, Buffer error: ${bufferError instanceof Error ? bufferError.message : String(bufferError)}, Simple error: ${simpleError instanceof Error ? simpleError.message : String(simpleError)}, File error: ${fileError instanceof Error ? fileError.message : String(fileError)}`);
           }
         }
       }
@@ -425,11 +417,11 @@ app.get('/api/reports/:sessionId/:reportId/download', async (req, res) => {
 
     // Send PDF buffer
     const filename = `${report.applicationName.replace(/[^a-zA-Z0-9]/g, '_')}_Report.pdf`;
-    
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Length', pdfBuffer.length);
-    
+
     return res.send(pdfBuffer);
 
   } catch (error) {
@@ -999,12 +991,12 @@ app.use((error: any, req: express.Request, res: express.Response, next: express.
 // Global error handler middleware - ensures all errors return JSON
 app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Global error handler:', error);
-  
+
   // If response already sent, delegate to default Express error handler
   if (res.headersSent) {
     return next(error);
   }
-  
+
   // Return JSON error response
   return res.status(error.status || 500).json({
     error: error.message || 'Internal server error',
