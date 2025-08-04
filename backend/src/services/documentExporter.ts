@@ -1,4 +1,5 @@
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun } from 'docx';
 import fs from 'fs';
 import path from 'path';
@@ -31,9 +32,22 @@ export class DocumentExporter {
   }
 
   private async generatePDF(report: GeneratedReport, options: ExportOptions): Promise<Buffer> {
+    const isVercel = process.env.VERCEL === '1';
+    
     const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: isVercel ? chromium.args : [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu'
+      ],
+      defaultViewport: chromium.defaultViewport,
+      executablePath: isVercel ? await chromium.executablePath() : undefined,
+      headless: chromium.headless,
     });
 
     try {
