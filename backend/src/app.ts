@@ -303,6 +303,33 @@ app.get('/api/reports/:sessionId', (req, res) => {
   }
 });
 
+// Get a single generated report by its id (within a session)
+app.get('/api/reports/:sessionId/:reportId', (req, res) => {
+  try {
+    const { sessionId, reportId } = req.params;
+    const reports = generatedReports.get(sessionId);
+    if (!reports) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    const report = reports.find(r => r.id === reportId);
+    if (!report) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+    return res.json({
+      id: report.id,
+      title: report.title,
+      applicationName: report.applicationName,
+      organizationName: report.organizationName,
+      htmlContent: report.htmlContent,
+      sections: report.sections,
+      metadata: report.metadata,
+    });
+  } catch (error) {
+    console.error('Error fetching report:', error);
+    return res.status(500).json({ error: 'Failed to fetch report' });
+  }
+});
+
 // Get preview HTML for a specific report
 app.get('/api/reports/:sessionId/:reportId/preview', (req, res) => {
   console.log('🌐 PREVIEW ENDPOINT CALLED:', req.params);
