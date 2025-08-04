@@ -764,7 +764,18 @@ app.post('/api/reports/:sessionId/:reportId/ai-enhance', async (req, res) => {
     // Use Azure OpenAI to enhance content based on user request
     const { AzureOpenAI } = require('openai');
 
+    console.log('Environment check:', {
+      hasApiKey: !!process.env.AZURE_OPENAI_API_KEY,
+      hasEndpoint: !!process.env.AZURE_OPENAI_ENDPOINT,
+      apiKeyLength: process.env.AZURE_OPENAI_API_KEY?.length || 0,
+      endpoint: process.env.AZURE_OPENAI_ENDPOINT
+    });
+
     if (!process.env.AZURE_OPENAI_API_KEY || !process.env.AZURE_OPENAI_ENDPOINT) {
+      console.error('Azure OpenAI configuration missing:', {
+        apiKey: !!process.env.AZURE_OPENAI_API_KEY,
+        endpoint: !!process.env.AZURE_OPENAI_ENDPOINT
+      });
       return res.status(400).json({ error: 'Azure OpenAI not configured' });
     }
 
