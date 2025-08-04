@@ -8,7 +8,7 @@ import fs from 'fs';
 import multer from 'multer';
 import { parseCSVFile, mapApplicationDataToTemplate, ApplicationData } from './services/csvParser';
 import { loadTemplate, generateReportContent, GeneratedReport } from './services/reportGenerator';
-import { generateReportPDF, generateReportPDFBuffer, generateReportPDFBufferFallback, getGeneratedReportsDir } from './services/pdfGenerator';
+import { generateReportPDF, generateReportPDFBuffer, generateReportPDFBufferFallback, generateSimplePDFBuffer, getGeneratedReportsDir } from './services/pdfGenerator';
 import { DocumentExporter, ExportOptions } from './services/documentExporter';
 
 dotenv.config();
@@ -374,32 +374,41 @@ app.get('/api/reports/:sessionId/:reportId/download', async (req, res) => {
       } catch (fallbackError) {
         console.warn('Fallback PDF generation failed, trying file-based approach:', fallbackError);
         
-        // Final fallback to file-based approach for local development
+        // Try simple PDF generation (no Chromium required)
         try {
-          const pdfPath = await generateReportPDF(report);
-          const filename = `${report.applicationName.replace(/[^a-zA-Z0-9]/g, '_')}_Report.pdf`;
+          console.warn('Trying simple PDF generation as final fallback');
+          pdfBuffer = await generateSimplePDFBuffer(report);
+          console.log('Simple PDF generation successful');
+        } catch (simpleError) {
+          console.warn('Simple PDF generation failed, trying file-based approach:', simpleError);
+          
+          // Final fallback to file-based approach for local development
+          try {
+            const pdfPath = await generateReportPDF(report);
+            const filename = `${report.applicationName.replace(/[^a-zA-Z0-9]/g, '_')}_Report.pdf`;
 
-          // Send PDF file
-          res.setHeader('Content-Type', 'application/pdf');
-          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            // Send PDF file
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
-          const pdfStream = fs.createReadStream(pdfPath);
-          pdfStream.pipe(res);
+            const pdfStream = fs.createReadStream(pdfPath);
+            pdfStream.pipe(res);
 
-          // Clean up PDF file after sending
-          pdfStream.on('end', () => {
-            setTimeout(() => {
-              try {
-                fs.unlinkSync(pdfPath);
-              } catch (error) {
-                console.error('Error cleaning up PDF file:', error);
-              }
-            }, 5000);
-          });
+            // Clean up PDF file after sending
+            pdfStream.on('end', () => {
+              setTimeout(() => {
+                try {
+                  fs.unlinkSync(pdfPath);
+                } catch (error) {
+                  console.error('Error cleaning up PDF file:', error);
+                }
+              }, 5000);
+            });
 
-          return; // Explicit return since we're streaming the response
-        } catch (fileError) {
-          throw new Error(`All PDF generation methods failed. Buffer error: ${bufferError instanceof Error ? bufferError.message : String(bufferError)}, Fallback error: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}, File error: ${fileError instanceof Error ? fileError.message : String(fileError)}`);
+            return; // Explicit return since we're streaming the response
+          } catch (fileError) {
+            throw new Error(`All PDF generation methods failed. Buffer error: ${bufferError instanceof Error ? bufferError.message : String(bufferError)}, Fallback error: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}, Simple error: ${simpleError instanceof Error ? simpleError.message : String(simpleError)}, File error: ${fileError instanceof Error ? fileError.message : String(fileError)}`);
+          }
         }
       }
     }
