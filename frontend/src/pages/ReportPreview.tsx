@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Download, Eye, FileText, ArrowLeft, Loader2, Settings, Upload, Edit3, Save, X, Sparkles, Send } from 'lucide-react';
+import { useWorkflowStore } from '../stores/workflowStore';
 
 interface ReportSection {
   title: string;
@@ -33,6 +34,12 @@ interface ExportOptions {
 const ReportPreview: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const { reset } = useWorkflowStore();
+
+  const handleBackToStart = () => {
+    reset(); // Reset the workflow to initial state
+    navigate('/'); // Navigate to homepage (domain selection)
+  };
 
   const [reportSession, setReportSession] = useState<ReportSession | null>(null);
   const [selectedReportId, setSelectedReportId] = useState<string>('');
@@ -583,7 +590,7 @@ CRITICAL INSTRUCTIONS:
             {error}
           </div>
           <button
-            onClick={() => navigate('/generate-report')}
+            onClick={handleBackToStart}
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
           >
             Back to Report Generation
@@ -601,7 +608,7 @@ CRITICAL INSTRUCTIONS:
           <h2 className="text-xl font-semibold text-gray-900 mb-2">No Reports Found</h2>
           <p className="text-gray-600 mb-4">No reports were found for this session.</p>
           <button
-          onClick={() => navigate('/generate-report')}
+          onClick={handleBackToStart}
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
           >
             Generate New Reports
@@ -621,7 +628,7 @@ CRITICAL INSTRUCTIONS:
           <div className="flex items-center justify-between h-14 xs:h-16">
             <div className="flex items-center min-w-0">
               <button
-                onClick={() => navigate('/generate-report')}
+                onClick={handleBackToStart}
                 className="mr-2 xs:mr-4 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg active:scale-95 transition-transform flex-shrink-0"
               >
                 <ArrowLeft className="h-4 w-4 xs:h-5 xs:w-5" />

@@ -8,7 +8,7 @@ import dqLogo from '../assets/dq-logo.png';
 export const InputForm: React.FC = () => {
   const navigate = useNavigate();
   const { selectedTemplate, formData, setFormData, setCurrentStep, completeStep } = useWorkflowStore();
-  
+
   // Auto-populate document title based on selected template
   const getDefaultTitle = () => {
     if (selectedTemplate) {
@@ -16,7 +16,7 @@ export const InputForm: React.FC = () => {
     }
     return 'Report - 2025';
   };
-  
+
   const [localFormData, setLocalFormData] = useState({
     documentTitle: formData.documentTitle || getDefaultTitle(),
     startDate: formData.startDate || '',
@@ -51,7 +51,7 @@ export const InputForm: React.FC = () => {
     const updated = current.includes(audience)
       ? current.filter((a: string) => a !== audience)
       : [...current, audience];
-    
+
     setLocalFormData(prev => ({
       ...prev,
       stakeholderAudience: updated
@@ -199,7 +199,7 @@ export const InputForm: React.FC = () => {
           {/* Logo */}
           <div>
             <h3 className="text-base xs:text-lg font-medium text-gray-900 mb-3 xs:mb-4">Logo</h3>
-            
+
             {/* Logo Options */}
             <div className="flex flex-col xs:flex-row xs:items-center space-y-2 xs:space-y-0 xs:space-x-6 mb-4">
               <label className="flex items-center cursor-pointer">
@@ -229,9 +229,9 @@ export const InputForm: React.FC = () => {
               {/* DQ Logo Preview */}
               {localFormData.useDefaultLogo && (
                 <div className="flex items-center space-x-3">
-                  <img 
-                    src={dqLogo} 
-                    alt="DQ Logo" 
+                  <img
+                    src={dqLogo}
+                    alt="DQ Logo"
                     className="h-12 w-auto"
                   />
                   <span className="text-sm text-gray-600">DQ Logo</span>
@@ -243,9 +243,9 @@ export const InputForm: React.FC = () => {
                 <div className="flex items-center space-x-4">
                   {localFormData.customLogo ? (
                     <div className="flex items-center space-x-3">
-                      <img 
-                        src={localFormData.customLogo.preview} 
-                        alt="Custom Logo" 
+                      <img
+                        src={localFormData.customLogo.preview}
+                        alt="Custom Logo"
                         className="h-12 w-auto border border-gray-200 rounded"
                       />
                       <div className="flex flex-col">
@@ -336,7 +336,7 @@ export const InputForm: React.FC = () => {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </button>
-          
+
           <button
             onClick={handleContinue}
             className="inline-flex items-center justify-center px-6 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 active:scale-95 transition-transform"
