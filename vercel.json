@@ -13,14 +13,22 @@
       "use": "@vercel/node"
     }
   ],
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/(.*)",
-      "destination": "/backend/api/index.ts"
+      "src": "/api/(.*)",
+      "dest": "/backend/api/index.ts"
     },
     {
-      "source": "/(.*)",
-      "destination": "/frontend/$1"
+      "src": "/dq-logo.png",
+      "dest": "/frontend/dq-logo.png"
+    },
+    {
+      "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot))",
+      "dest": "/frontend/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/frontend/index.html"
     }
   ]
 }
