@@ -6,10 +6,10 @@ import { GeneratedReport } from './reportGenerator';
 
 export async function generatePDFFromHTML(htmlContent: string, outputPath: string): Promise<void> {
   let browser;
-  
+
   try {
     const isVercel = process.env.VERCEL === '1';
-    
+
     browser = await puppeteer.launch({
       args: isVercel ? chromium.args : [
         '--no-sandbox',
@@ -25,12 +25,12 @@ export async function generatePDFFromHTML(htmlContent: string, outputPath: strin
       executablePath: isVercel ? await chromium.executablePath() : undefined,
       headless: chromium.headless,
     });
-    
+
     const page = await browser.newPage();
-    
+
     // Set content and wait for any resources to load
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    
+
     // Generate PDF with proper formatting
     await page.pdf({
       path: outputPath,
@@ -44,7 +44,7 @@ export async function generatePDFFromHTML(htmlContent: string, outputPath: strin
       },
       displayHeaderFooter: false,
     });
-    
+
   } catch (error) {
     console.error('Error generating PDF:', error);
     throw error;
@@ -61,26 +61,26 @@ export async function generateReportPDF(report: GeneratedReport): Promise<string
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
   }
-  
+
   // Generate filename
   const sanitizedName = report.applicationName.replace(/[^a-zA-Z0-9]/g, '_');
   const filename = `${sanitizedName}_${report.metadata.applicationId}_${Date.now()}.pdf`;
   const outputPath = path.join(outputDir, filename);
-  
+
   // Generate PDF
   await generatePDFFromHTML(report.htmlContent, outputPath);
-  
+
   return outputPath;
 }
 
 // New function for generating PDF buffer (for Vercel)
 export async function generateReportPDFBuffer(report: GeneratedReport): Promise<Buffer> {
   let browser;
-  
+
   try {
     // Check if we're running in a Vercel environment
     const isVercel = process.env.VERCEL === '1';
-    
+
     browser = await puppeteer.launch({
       args: isVercel ? chromium.args : [
         '--no-sandbox',
@@ -98,24 +98,24 @@ export async function generateReportPDFBuffer(report: GeneratedReport): Promise<
       executablePath: isVercel ? await chromium.executablePath() : undefined,
       headless: chromium.headless,
     });
-    
+
     const page = await browser.newPage();
-    
+
     // Replace placeholders with actual values for PDF generation
     const applicationData = {
       applicationName: report.applicationName,
       organizationName: report.organizationName,
       applicationId: report.metadata.applicationId
     };
-    
+
     const htmlWithReplacedPlaceholders = report.htmlContent
       .replace(/\{application_name\}/g, applicationData.applicationName || 'Application Name')
       .replace(/\{organization_name\}/g, applicationData.organizationName || 'Organization Name')
       .replace(/\{application_id\}/g, applicationData.applicationId || 'Application ID');
-    
+
     // Set content and wait for any resources to load
     await page.setContent(htmlWithReplacedPlaceholders, { waitUntil: 'networkidle0' });
-    
+
     // Generate PDF buffer directly
     const pdfBuffer = await page.pdf({
       format: 'A4',
@@ -128,9 +128,9 @@ export async function generateReportPDFBuffer(report: GeneratedReport): Promise<
       },
       displayHeaderFooter: false,
     });
-    
+
     return Buffer.from(pdfBuffer);
-    
+
   } catch (error) {
     console.error('Error generating PDF buffer:', error);
     throw error;
