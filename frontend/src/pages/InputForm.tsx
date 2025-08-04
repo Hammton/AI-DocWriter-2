@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, Upload, X } from 'lucide-react';
 import { WorkflowStep } from '../types';
 import { useWorkflowStore } from '../stores/workflowStore';
+import dqLogo from '../assets/dq-logo.png';
 
 export const InputForm: React.FC = () => {
   const navigate = useNavigate();
@@ -229,7 +230,7 @@ export const InputForm: React.FC = () => {
               {localFormData.useDefaultLogo && (
                 <div className="flex items-center space-x-3">
                   <img 
-                    src="/dq-logo.png" 
+                    src={dqLogo} 
                     alt="DQ Logo" 
                     className="h-12 w-auto"
                   />

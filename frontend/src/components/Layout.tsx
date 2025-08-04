@@ -1,4 +1,5 @@
 import React from 'react';
+import dqLogo from '../assets/dq-logo.png';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -13,7 +14,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="flex items-center justify-between h-14 xs:h-16">
             <div className="flex items-center space-x-2 xs:space-x-3">
               <img 
-                src="/dq-logo.png" 
+                src={dqLogo} 
                 alt="DQ Logo" 
                 className="h-8 xs:h-10 w-auto"
               />
