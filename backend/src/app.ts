@@ -360,28 +360,29 @@ app.get('/api/reports/:sessionId/:reportId/download', async (req, res) => {
 
     console.log(`Generating PDF for report: ${report.title}`);
 
-    // Try ultra-simple PDF generation first (most reliable for serverless)
+    // Try Puppeteer PDF generation first (preserves styling from HTML)
     let pdfBuffer: Buffer;
     try {
-      console.log('Attempting ultra-simple PDF generation (JSDOM + jsPDF - no browser required)');
-      pdfBuffer = await generateUltraSimplePDFBuffer(report);
-      console.log('Ultra-simple PDF generation successful');
-    } catch (ultraSimpleError) {
-      console.warn('Ultra-simple PDF generation failed, trying Puppeteer methods:', ultraSimpleError);
+      console.log('Attempting Puppeteer PDF generation (preserves styling)');
+      pdfBuffer = await generateReportPDFBuffer(report);
+      console.log('Puppeteer PDF generation successful');
+    } catch (bufferError) {
+      console.warn('Puppeteer PDF generation failed, trying simple methods:', bufferError);
 
-      // Try Puppeteer-based methods as fallback
+      // Try simple PDF generation as fallback
       try {
-        pdfBuffer = await generateReportPDFBuffer(report);
-        console.log('Puppeteer PDF generation successful');
-      } catch (bufferError) {
-        console.warn('Puppeteer PDF buffer generation failed, trying fallback method:', bufferError);
+        console.log('Attempting simple PDF generation with jsPDF (no browser required)');
+        pdfBuffer = await generateSimplePDFBuffer(report);
+        console.log('Simple PDF generation successful - using jsPDF');
+      } catch (simpleError) {
+        console.warn('Simple PDF generation failed, trying ultra-simple method:', simpleError);
 
-        // Try simple PDF generation (no Chromium required)
+        // Try ultra-simple PDF generation as final fallback
         try {
-          console.log('Attempting simple PDF generation with jsPDF (no browser required)');
-          pdfBuffer = await generateSimplePDFBuffer(report);
-          console.log('Simple PDF generation successful - using jsPDF');
-        } catch (simpleError) {
+          console.log('Attempting ultra-simple PDF generation (JSDOM + jsPDF - no browser required)');
+          pdfBuffer = await generateUltraSimplePDFBuffer(report);
+          console.log('Ultra-simple PDF generation successful');
+        } catch (ultraSimpleError) {
           console.error('All PDF generation methods failed, trying file-based approach as last resort:', simpleError);
 
           // Final fallback to file-based approach for local development

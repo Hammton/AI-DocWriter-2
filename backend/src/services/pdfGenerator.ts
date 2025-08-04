@@ -1,5 +1,4 @@
-import puppeteer from 'puppeteer-core'
-import chromium from '@sparticuz/chromium'
+import puppeteer from 'puppeteer'
 import fs from 'fs'
 import path from 'path'
 import { GeneratedReport } from './reportGenerator'
@@ -11,15 +10,10 @@ function isServerless() {
 }
 
 async function launchBrowser() {
-  if (isServerless()) {
-    return await puppeteer.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath(),
-      defaultViewport: chromium.defaultViewport,
-      headless: chromium.headless,
-    })
-  }
-  return await puppeteer.launch({ headless: true })
+  return await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  })
 }
 
 export async function generatePDFFromHTML(htmlContent: string, outputPath: string): Promise<void> {
@@ -74,13 +68,44 @@ export async function generateReportPDFBuffer(report: GeneratedReport): Promise<
       .replace(/\{organization_name\}/g, applicationData.organizationName || 'Organization Name')
       .replace(/\{application_id\}/g, applicationData.applicationId || 'Application ID')
 
+    // Set viewport for consistent rendering
+    await page.setViewport({ width: 1200, height: 1600, deviceScaleFactor: 1 });
+    
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 })
+
+    // Add CSS to ensure colors and backgrounds are preserved - inspired by openhtmltopdf
+    await page.addStyleTag({
+      content: `
+        * {
+          -webkit-print-color-adjust: exact !important;
+          color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        /* Force all elements to preserve their styling in PDF */
+        body, div, h1, h2, h3, h4, h5, h6, p, table, th, td, span {
+          -webkit-print-color-adjust: exact !important;
+          color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        /* Ensure borders and backgrounds are visible */
+        .header, .metadata, .section-title, .table th, .highlight {
+          -webkit-print-color-adjust: exact !important;
+          color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+      `
+    });
+
+    // Wait a bit for styles to be applied
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
       margin: { top: '20mm', right: '15mm', bottom: '20mm', left: '15mm' },
       displayHeaderFooter: false,
       timeout: 30000,
+      preferCSSPageSize: true, // Use CSS @page rules
     })
 
     return Buffer.from(pdfBuffer)

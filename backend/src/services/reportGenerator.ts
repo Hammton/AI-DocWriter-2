@@ -297,9 +297,50 @@ function generateHTMLReport(template: ReportTemplate, sections: Array<{ title: s
             border-top: 1px solid #e5e7eb;
             padding-top: 20px;
         }
+        /* PDF-specific page setup inspired by openhtmltopdf */
+        @page {
+            size: A4;
+            margin: 20mm 15mm;
+        }
         @media print {
-            body { margin: 0; padding: 20px; }
-            .section { page-break-inside: avoid; }
+            body { 
+                margin: 0; 
+                padding: 0;
+                font-size: 12pt;
+                line-height: 1.4;
+            }
+            .section { 
+                page-break-inside: avoid; 
+                margin-bottom: 20pt;
+            }
+            .header { 
+                page-break-after: avoid; 
+                margin-bottom: 30pt;
+            }
+            .metadata { 
+                page-break-inside: avoid; 
+                margin-bottom: 20pt;
+            }
+            .section-title {
+                page-break-after: avoid;
+                margin-top: 20pt;
+                margin-bottom: 10pt;
+            }
+            .table {
+                page-break-inside: avoid;
+            }
+        }
+        /* Ensure colors and backgrounds are preserved in PDF */
+        * {
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        /* Force background colors and borders to print */
+        .header, .logo, .report-title, .section-title, .metadata, .table th, .highlight {
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            print-color-adjust: exact !important;
         }
     </style>
 </head>
