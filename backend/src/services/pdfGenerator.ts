@@ -109,6 +109,7 @@ export async function generateReportPDFBuffer(report: GeneratedReport): Promise<
     // Set viewport for consistent rendering
     await page.setViewport({ width: 1200, height: 1600, deviceScaleFactor: 1 });
 
+    await page.setBypassCSP(true)
     await page.setContent(html, { waitUntil: 'networkidle2', timeout: 45000 })
 
     console.log('🎨 Applying CSS for styling preservation...')
