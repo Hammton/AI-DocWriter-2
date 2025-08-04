@@ -10,7 +10,8 @@ function isServerless() {
 
 async function launchBrowser() {
   if (isServerless()) {
-    // Use puppeteer-core with chromium for serverless environments
+    // Use puppeteer-core with chromium for serverless environments (Vercel)
+    console.log('🌐 Using serverless configuration (puppeteer-core + chromium)')
     const puppeteer = await import('puppeteer-core')
     const chromium = await import('@sparticuz/chromium')
 
@@ -21,11 +22,14 @@ async function launchBrowser() {
       headless: chromium.default.headless,
     })
   } else {
-    // Use regular puppeteer for local development, fallback to puppeteer-core
+    // Local development - try puppeteer first, then fallback to puppeteer-core
+    console.log('💻 Using local development configuration')
     try {
-      // Try to dynamically import puppeteer (might not be available in all environments)
-      const puppeteer = await import('puppeteer').catch(() => null)
+      // Try to dynamically import puppeteer using string to avoid TypeScript resolution
+      const puppeteerModule = 'puppeteer'
+      const puppeteer = await import(puppeteerModule).catch(() => null)
       if (puppeteer) {
+        console.log('✅ Using regular puppeteer for local development')
         return await puppeteer.default.launch({
           headless: true,
           args: ['--no-sandbox', '--disable-setuid-sandbox']
@@ -34,7 +38,7 @@ async function launchBrowser() {
       throw new Error('Puppeteer not available')
     } catch (error) {
       // Fallback to puppeteer-core if puppeteer is not available
-      console.warn('Regular puppeteer not available, falling back to puppeteer-core')
+      console.warn('⚠️ Regular puppeteer not available, falling back to puppeteer-core')
       const puppeteerCore = await import('puppeteer-core')
       return await puppeteerCore.default.launch({
         headless: true,
