@@ -273,7 +273,7 @@ export function getGeneratedReportsDir(): string {
 // Simple PDF generation using jsPDF (no Chromium required)
 export async function generateSimplePDFBuffer(report: GeneratedReport): Promise<Buffer> {
   try {
-    console.log('Using simple PDF generation with jsPDF');
+    console.log('Using simple PDF generation with jsPDF (no Chromium required)');
 
     const doc = new jsPDF();
 
