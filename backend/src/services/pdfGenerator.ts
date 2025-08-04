@@ -4,6 +4,9 @@ import fs from 'fs';
 import path from 'path';
 import { GeneratedReport } from './reportGenerator';
 
+// Fallback PDF generation using html-pdf-node
+const htmlPdf = require('html-pdf-node');
+
 export async function generatePDFFromHTML(htmlContent: string, outputPath: string): Promise<void> {
   let browser;
 
@@ -149,6 +152,46 @@ export async function generateReportPDFBuffer(report: GeneratedReport): Promise<
     if (browser) {
       await browser.close();
     }
+  }
+}
+
+// Fallback PDF generation using html-pdf-node (more reliable on serverless)
+export async function generateReportPDFBufferFallback(report: GeneratedReport): Promise<Buffer> {
+  try {
+    console.log('Using fallback PDF generation with html-pdf-node');
+    
+    // Replace placeholders with actual values for PDF generation
+    const applicationData = {
+      applicationName: report.applicationName,
+      organizationName: report.organizationName,
+      applicationId: report.metadata.applicationId
+    };
+
+    const htmlWithReplacedPlaceholders = report.htmlContent
+      .replace(/\{application_name\}/g, applicationData.applicationName || 'Application Name')
+      .replace(/\{organization_name\}/g, applicationData.organizationName || 'Organization Name')
+      .replace(/\{application_id\}/g, applicationData.applicationId || 'Application ID');
+
+    const options = {
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '20mm',
+        right: '15mm',
+        bottom: '20mm',
+        left: '15mm',
+      },
+    };
+
+    const file = { content: htmlWithReplacedPlaceholders };
+    const pdfBuffer = await htmlPdf.generatePdf(file, options);
+    
+    console.log('Fallback PDF generation successful');
+    return pdfBuffer;
+    
+  } catch (error) {
+    console.error('Error in fallback PDF generation:', error);
+    throw error;
   }
 }
 

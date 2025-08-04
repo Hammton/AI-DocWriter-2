@@ -8,7 +8,7 @@ import fs from 'fs';
 import multer from 'multer';
 import { parseCSVFile, mapApplicationDataToTemplate, ApplicationData } from './services/csvParser';
 import { loadTemplate, generateReportContent, GeneratedReport } from './services/reportGenerator';
-import { generateReportPDF, generateReportPDFBuffer, getGeneratedReportsDir } from './services/pdfGenerator';
+import { generateReportPDF, generateReportPDFBuffer, generateReportPDFBufferFallback, getGeneratedReportsDir } from './services/pdfGenerator';
 import { DocumentExporter, ExportOptions } from './services/documentExporter';
 
 dotenv.config();
@@ -365,34 +365,42 @@ app.get('/api/reports/:sessionId/:reportId/download', async (req, res) => {
     try {
       pdfBuffer = await generateReportPDFBuffer(report);
     } catch (bufferError) {
-      console.warn('PDF buffer generation failed, falling back to file-based approach:', bufferError);
+      console.warn('PDF buffer generation failed, trying fallback method:', bufferError);
       
-      // Fallback to file-based approach for local development
+      // Try the fallback PDF generation method
       try {
-        const pdfPath = await generateReportPDF(report);
-        const filename = `${report.applicationName.replace(/[^a-zA-Z0-9]/g, '_')}_Report.pdf`;
+        pdfBuffer = await generateReportPDFBufferFallback(report);
+        console.log('Fallback PDF generation successful');
+      } catch (fallbackError) {
+        console.warn('Fallback PDF generation failed, trying file-based approach:', fallbackError);
+        
+        // Final fallback to file-based approach for local development
+        try {
+          const pdfPath = await generateReportPDF(report);
+          const filename = `${report.applicationName.replace(/[^a-zA-Z0-9]/g, '_')}_Report.pdf`;
 
-        // Send PDF file
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+          // Send PDF file
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
-        const pdfStream = fs.createReadStream(pdfPath);
-        pdfStream.pipe(res);
+          const pdfStream = fs.createReadStream(pdfPath);
+          pdfStream.pipe(res);
 
-        // Clean up PDF file after sending
-        pdfStream.on('end', () => {
-          setTimeout(() => {
-            try {
-              fs.unlinkSync(pdfPath);
-            } catch (error) {
-              console.error('Error cleaning up PDF file:', error);
-            }
-          }, 5000);
-        });
+          // Clean up PDF file after sending
+          pdfStream.on('end', () => {
+            setTimeout(() => {
+              try {
+                fs.unlinkSync(pdfPath);
+              } catch (error) {
+                console.error('Error cleaning up PDF file:', error);
+              }
+            }, 5000);
+          });
 
-        return; // Explicit return since we're streaming the response
-      } catch (fileError) {
-        throw new Error(`Both PDF generation methods failed. Buffer error: ${bufferError instanceof Error ? bufferError.message : String(bufferError)}, File error: ${fileError instanceof Error ? fileError.message : String(fileError)}`);
+          return; // Explicit return since we're streaming the response
+        } catch (fileError) {
+          throw new Error(`All PDF generation methods failed. Buffer error: ${bufferError instanceof Error ? bufferError.message : String(bufferError)}, Fallback error: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}, File error: ${fileError instanceof Error ? fileError.message : String(fileError)}`);
+        }
       }
     }
 
