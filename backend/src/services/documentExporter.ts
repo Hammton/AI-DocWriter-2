@@ -15,11 +15,43 @@ export class DocumentExporter {
   async exportDocument(report: GeneratedReport, options: ExportOptions): Promise<Buffer> {
     console.log(`🚀 Exporting ${options.format.toUpperCase()} - Vercel compatible version`);
 
+    // Replace placeholders in report content before export
+    const processedReport = this.replacePlaceholders(report);
+
     if (options.format === 'pdf') {
-      return this.generatePDF(report, options);
+      return this.generatePDF(processedReport, options);
     } else {
-      return this.generateDOCX(report, options);
+      return this.generateDOCX(processedReport, options);
     }
+  }
+
+  private replacePlaceholders(report: GeneratedReport): GeneratedReport {
+    console.log('🔧 Replacing placeholders in report content...');
+    
+    const applicationData = {
+      applicationName: report.applicationName,
+      organizationName: report.organizationName,
+      applicationId: report.metadata.applicationId
+    };
+
+    // Create a copy of the report with replaced placeholders
+    const processedReport: GeneratedReport = {
+      ...report,
+      sections: report.sections.map(section => ({
+        ...section,
+        content: this.replaceContentPlaceholders(section.content, applicationData)
+      }))
+    };
+
+    console.log('✅ Placeholders replaced successfully');
+    return processedReport;
+  }
+
+  private replaceContentPlaceholders(content: string, applicationData: any): string {
+    return content
+      .replace(/\{application_name\}/g, applicationData.applicationName || 'Application Name')
+      .replace(/\{organization_name\}/g, applicationData.organizationName || 'Organization Name')
+      .replace(/\{application_id\}/g, applicationData.applicationId || 'Application ID');
   }
 
   private async generatePDF(report: GeneratedReport, options: ExportOptions): Promise<Buffer> {
