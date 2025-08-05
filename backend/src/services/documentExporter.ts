@@ -53,6 +53,7 @@ export class DocumentExporter {
       hasAppName: content.includes('{application_name}'),
       hasOrgName: content.includes('{organization_name}'),
       hasAppId: content.includes('{application_id}'),
+      hasImages: content.includes('<img'),
       applicationData
     });
 
@@ -66,10 +67,39 @@ export class DocumentExporter {
       hasAppName: processedContent.includes('{application_name}'),
       hasOrgName: processedContent.includes('{organization_name}'),
       hasAppId: processedContent.includes('{application_id}'),
+      hasImages: processedContent.includes('<img'),
       replacementsMade: content !== processedContent
     });
 
     return processedContent;
+  }
+
+  private extractImagesFromContent(content: string): { images: Array<{src: string, alt: string}>, textContent: string } {
+    const images: Array<{src: string, alt: string}> = [];
+    
+    // Extract image tags and their data
+    const imgRegex = /<img[^>]+src="([^"]+)"[^>]*alt="([^"]*)"[^>]*>/gi;
+    let match;
+    
+    while ((match = imgRegex.exec(content)) !== null) {
+      images.push({
+        src: match[1],
+        alt: match[2] || 'Uploaded image'
+      });
+    }
+    
+    // Remove image HTML but keep a placeholder text
+    const textContent = content
+      .replace(/<div[^>]*><img[^>]+><\/div>/gi, '\n[IMAGE]\n')
+      .replace(/<img[^>]*>/gi, '[IMAGE]');
+    
+    console.log('🖼️ Extracted images:', {
+      imageCount: images.length,
+      hasBase64Images: images.some(img => img.src.startsWith('data:')),
+      textLength: textContent.length
+    });
+    
+    return { images, textContent };
   }
 
   private async generatePDF(report: GeneratedReport, options: ExportOptions): Promise<Buffer> {
@@ -392,10 +422,73 @@ export class DocumentExporter {
       doc.setFontSize(12);
       doc.setTextColor(0, 0, 0);
 
-      // Clean and format content
-      const cleanContent = section.content
-        .replace(/<[^>]*>/g, '') // Remove HTML tags
+      // Extract images and clean content
+      const { images, textContent } = this.extractImagesFromContent(section.content);
+      
+      // Add images to PDF if any exist
+      if (images.length > 0) {
+        for (const image of images) {
+          if (yPos > 240) {
+            doc.addPage();
+            yPos = 20;
+          }
+          
+          try {
+            if (image.src.startsWith('data:')) {
+              // Handle base64 images
+              const base64Data = image.src.split(',')[1];
+              const mimeType = image.src.split(';')[0].split(':')[1];
+              let format = 'JPEG';
+              
+              if (mimeType.includes('png')) format = 'PNG';
+              else if (mimeType.includes('gif')) format = 'GIF';
+              
+              // Add image to PDF
+              doc.addImage(image.src, format, 25, yPos, 140, 80);
+              yPos += 90;
+              
+              // Add image caption
+              doc.setFontSize(10);
+              doc.setTextColor(100, 116, 139);
+              doc.text(image.alt, 25, yPos);
+              yPos += 15;
+            } else {
+              // Handle file path images (local development)
+              if (fs.existsSync(image.src)) {
+                const imageBuffer = fs.readFileSync(image.src);
+                const imageBase64 = imageBuffer.toString('base64');
+                const ext = path.extname(image.src).toLowerCase();
+                let format = 'JPEG';
+                
+                if (ext === '.png') format = 'PNG';
+                else if (ext === '.gif') format = 'GIF';
+                
+                doc.addImage(`data:image/${format.toLowerCase()};base64,${imageBase64}`, format, 25, yPos, 140, 80);
+                yPos += 90;
+                
+                // Add image caption
+                doc.setFontSize(10);
+                doc.setTextColor(100, 116, 139);
+                doc.text(image.alt, 25, yPos);
+                yPos += 15;
+              }
+            }
+          } catch (imageError) {
+            console.warn('Failed to add image to PDF:', imageError);
+            // Add placeholder text for failed images
+            doc.setFontSize(10);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`[Image: ${image.alt}]`, 25, yPos);
+            yPos += 15;
+          }
+        }
+      }
+
+      // Clean and format text content
+      const cleanContent = textContent
+        .replace(/<[^>]*>/g, '') // Remove remaining HTML tags
         .replace(/\*\*(.*?)\*\*/g, '$1') // Remove markdown bold
+        .replace(/\[IMAGE\]/g, '') // Remove image placeholders
         .trim();
 
       // Smart content detection - render tables when appropriate, text otherwise
@@ -581,8 +674,9 @@ export class DocumentExporter {
       );
     }
 
-    // Report sections with Raleway font
+    // Report sections with Raleway font and image support
     for (const section of report.sections) {
+      // Add section title
       content.push(
         new Paragraph({
           children: [
@@ -594,17 +688,129 @@ export class DocumentExporter {
             }),
           ],
           heading: HeadingLevel.HEADING_2,
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: section.content.replace(/<[^>]*>/g, ''), // Strip HTML tags
-              font: "Raleway",
-              size: 24, // 12pt for body text
-            }),
-          ],
         })
       );
+
+      // Extract images and text content
+      const { images, textContent } = this.extractImagesFromContent(section.content);
+      
+      // Add images to DOCX if any exist
+      if (images.length > 0) {
+        for (const image of images) {
+          try {
+            if (image.src.startsWith('data:')) {
+              // Handle base64 images
+              const base64Data = image.src.split(',')[1];
+              const imageBuffer = Buffer.from(base64Data, 'base64');
+              
+              content.push(
+                new Paragraph({
+                  children: [
+                    new ImageRun({
+                      data: imageBuffer,
+                      transformation: {
+                        width: 400,
+                        height: 300,
+                      },
+                    }),
+                  ],
+                  alignment: AlignmentType.CENTER,
+                })
+              );
+              
+              // Add image caption
+              if (image.alt && image.alt !== 'Uploaded image') {
+                content.push(
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: image.alt,
+                        font: "Raleway",
+                        size: 20, // 10pt for caption
+                        italics: true,
+                      }),
+                    ],
+                    alignment: AlignmentType.CENTER,
+                  })
+                );
+              }
+            } else {
+              // Handle file path images (local development)
+              if (fs.existsSync(image.src)) {
+                const imageBuffer = fs.readFileSync(image.src);
+                
+                content.push(
+                  new Paragraph({
+                    children: [
+                      new ImageRun({
+                        data: imageBuffer,
+                        transformation: {
+                          width: 400,
+                          height: 300,
+                        },
+                      }),
+                    ],
+                    alignment: AlignmentType.CENTER,
+                  })
+                );
+                
+                // Add image caption
+                if (image.alt && image.alt !== 'Uploaded image') {
+                  content.push(
+                    new Paragraph({
+                      children: [
+                        new TextRun({
+                          text: image.alt,
+                          font: "Raleway",
+                          size: 20, // 10pt for caption
+                          italics: true,
+                        }),
+                      ],
+                      alignment: AlignmentType.CENTER,
+                    })
+                  );
+                }
+              }
+            }
+          } catch (imageError) {
+            console.warn('Failed to add image to DOCX:', imageError);
+            // Add placeholder text for failed images
+            content.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `[Image: ${image.alt}]`,
+                    font: "Raleway",
+                    size: 24,
+                    italics: true,
+                  }),
+                ],
+                alignment: AlignmentType.CENTER,
+              })
+            );
+          }
+        }
+      }
+
+      // Add text content
+      const cleanTextContent = textContent
+        .replace(/<[^>]*>/g, '') // Strip remaining HTML tags
+        .replace(/\[IMAGE\]/g, '') // Remove image placeholders
+        .trim();
+
+      if (cleanTextContent) {
+        content.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: cleanTextContent,
+                font: "Raleway",
+                size: 24, // 12pt for body text
+              }),
+            ],
+          })
+        );
+      }
     }
 
     // Footer with Raleway font
