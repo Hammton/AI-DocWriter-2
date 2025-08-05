@@ -557,7 +557,19 @@ app.post('/api/convert/html-to-pdf', async (req, res) => {
 
     const { html, url } = req.body || {}
     const parameters: any[] = []
-    if (html) parameters.push({ Name: 'Html', Value: html })
+
+    let finalHtml = html
+    try {
+      if (html && process.env.PUBLIC_CSS_URL) {
+        const cssResp = await fetch(process.env.PUBLIC_CSS_URL)
+        if (cssResp.ok) {
+          const cssText = await cssResp.text()
+          finalHtml = html.replace('</head>', `<style>${cssText}</style></head>')
+        }
+      }
+    } catch {}
+
+    if (finalHtml) parameters.push({ Name: 'Html', Value: finalHtml })
     if (url) parameters.push({ Name: 'Url', Value: url })
     if (!parameters.length) return res.status(400).json({ error: 'Provide html or url' })
 
@@ -586,7 +598,19 @@ app.post('/api/convert/html-to-docx', async (req, res) => {
 
     const { html, url } = req.body || {}
     const parameters: any[] = []
-    if (html) parameters.push({ Name: 'Html', Value: html })
+
+    let finalHtml = html
+    try {
+      if (html && process.env.PUBLIC_CSS_URL) {
+        const cssResp = await fetch(process.env.PUBLIC_CSS_URL)
+        if (cssResp.ok) {
+          const cssText = await cssResp.text()
+          finalHtml = html.replace('</head>', `<style>${cssText}</style></head>')
+        }
+      }
+    } catch {}
+
+    if (finalHtml) parameters.push({ Name: 'Html', Value: finalHtml })
     if (url) parameters.push({ Name: 'Url', Value: url })
     if (!parameters.length) return res.status(400).json({ error: 'Provide html or url' })
 
