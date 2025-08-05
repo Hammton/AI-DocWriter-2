@@ -43,59 +43,65 @@ export class DocumentExporter {
       }
     }
 
-    // Fallback to Puppeteer
-    console.log('🔄 Using Puppeteer for PDF generation (fallback)');
-    const isVercel = process.env.VERCEL === '1';
-    
-    const browser = await puppeteer.launch({
-      args: isVercel ? [
-        ...chromium.args,
-        '--disable-gpu',
-        '--disable-dev-shm-usage',
-        '--disable-setuid-sandbox',
-        '--no-first-run',
-        '--no-sandbox',
-        '--no-zygote',
-        '--single-process',
-        '--disable-extensions'
-      ] : [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process',
-        '--disable-gpu'
-      ],
-      defaultViewport: chromium.defaultViewport,
-      executablePath: isVercel ? await chromium.executablePath() : undefined,
-      headless: chromium.headless,
-      ignoreDefaultArgs: isVercel ? ['--disable-extensions'] : false,
-    });
-
+    // Try Puppeteer fallback
     try {
-      const page = await browser.newPage();
+      console.log('🔄 Using Puppeteer for PDF generation (fallback)');
+      const isVercel = process.env.VERCEL === '1';
       
-      // Generate HTML with logo and stakeholder audience
-      const htmlContent = await this.generateHTMLWithLogo(report, options);
-      
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      
-      const pdfBuffer = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: {
-          top: '20mm',
-          right: '15mm',
-          bottom: '20mm',
-          left: '15mm'
-        }
+      const browser = await puppeteer.launch({
+        args: isVercel ? [
+          ...chromium.args,
+          '--disable-gpu',
+          '--disable-dev-shm-usage',
+          '--disable-setuid-sandbox',
+          '--no-first-run',
+          '--no-sandbox',
+          '--no-zygote',
+          '--single-process',
+          '--disable-extensions'
+        ] : [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process',
+          '--disable-gpu'
+        ],
+        defaultViewport: chromium.defaultViewport,
+        executablePath: isVercel ? await chromium.executablePath() : undefined,
+        headless: chromium.headless,
+        ignoreDefaultArgs: isVercel ? ['--disable-extensions'] : false,
       });
 
-      return Buffer.from(pdfBuffer);
-    } finally {
-      await browser.close();
+      try {
+        const page = await browser.newPage();
+        
+        // Generate HTML with logo and stakeholder audience
+        const htmlContent = await this.generateHTMLWithLogo(report, options);
+        
+        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+        
+        const pdfBuffer = await page.pdf({
+          format: 'A4',
+          printBackground: true,
+          margin: {
+            top: '20mm',
+            right: '15mm',
+            bottom: '20mm',
+            left: '15mm'
+          }
+        });
+
+        return Buffer.from(pdfBuffer);
+      } finally {
+        await browser.close();
+      }
+    } catch (puppeteerError) {
+      console.warn('⚠️ Puppeteer also failed, using simple PDF fallback:', puppeteerError);
+      // Final fallback to simple PDF generation
+      return await this.generateSimplePDF(report, options);
     }
   }
 
@@ -420,6 +426,12 @@ export class DocumentExporter {
     // Generate enhanced HTML with better styling for ConvertAPI
     const htmlContent = await this.generateEnhancedHTMLForConvertAPI(report, options);
     
+    // Debug: Check HTML content
+    console.log('📄 HTML content length:', htmlContent.length);
+    if (htmlContent.length < 100) {
+      console.warn('⚠️ HTML content seems too short:', htmlContent.substring(0, 200));
+    }
+    
     const parameters: any[] = [
       { Name: 'Html', Value: htmlContent },
       { Name: 'PageSize', Value: 'A4' },
@@ -429,9 +441,10 @@ export class DocumentExporter {
       { Name: 'MarginLeft', Value: '15' },
       { Name: 'PrintBackground', Value: 'true' },
       { Name: 'LoadErrorHandling', Value: 'skip' },
-      { Name: 'WaitTime', Value: '3' }
+      { Name: 'WaitTime', Value: '5' }
     ];
 
+    console.log('🚀 Sending request to ConvertAPI...');
     const response = await fetch(`https://v2.convertapi.com/convert/html/to/pdf?Secret=${encodeURIComponent(secret)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -440,21 +453,29 @@ export class DocumentExporter {
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('❌ ConvertAPI error response:', errorText);
       throw new Error(`ConvertAPI request failed: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json() as any;
+    console.log('✅ ConvertAPI response received:', { filesCount: data.Files?.length });
+    
     const file = data.Files?.[0];
     if (!file?.Url) {
+      console.error('❌ No file URL in response:', data);
       throw new Error('No file URL returned from ConvertAPI');
     }
 
+    console.log('📥 Downloading PDF from ConvertAPI...');
     const pdfResponse = await fetch(file.Url);
     if (!pdfResponse.ok) {
       throw new Error('Failed to download PDF from ConvertAPI');
     }
 
-    return Buffer.from(await pdfResponse.arrayBuffer());
+    const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
+    console.log('✅ PDF downloaded successfully, size:', pdfBuffer.length, 'bytes');
+    
+    return pdfBuffer;
   }
 
   private async generateEnhancedHTMLForConvertAPI(report: GeneratedReport, options: ExportOptions): Promise<string> {
@@ -742,6 +763,113 @@ export class DocumentExporter {
 </body>
 </html>
 `;
+  }
+
+  private async generateSimplePDF(report: GeneratedReport, options: ExportOptions): Promise<Buffer> {
+    console.log('📄 Using simple PDF generation (jsPDF fallback)');
+    
+    // Import jsPDF dynamically to avoid issues
+    const { jsPDF } = await import('jspdf');
+    
+    const doc = new jsPDF();
+    const currentDate = new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+
+    // Title and header
+    doc.setFontSize(20);
+    doc.setTextColor(37, 99, 235); // Blue color
+    doc.text(report.organizationName, 20, 30);
+    
+    doc.setFontSize(16);
+    doc.setTextColor(30, 64, 175); // Darker blue
+    doc.text(report.title, 20, 45);
+    
+    doc.setFontSize(12);
+    doc.setTextColor(100, 116, 139); // Gray
+    doc.text(`Application Owner: ${report.metadata.applicationId}`, 20, 55);
+    doc.text('Report Owner: Enterprise Architecture', 20, 65);
+    
+    // Line separator
+    doc.setDrawColor(37, 99, 235);
+    doc.setLineWidth(1);
+    doc.line(20, 75, 190, 75);
+    
+    // Report Information
+    doc.setFontSize(14);
+    doc.setTextColor(30, 64, 175);
+    doc.text('Report Information', 20, 90);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    let yPos = 100;
+    
+    const reportInfo = [
+      `Application ID: ${report.metadata.applicationId}`,
+      `Application Name: ${report.applicationName}`,
+      `Organization: ${report.organizationName}`,
+      `Status: Active`,
+      `Generated Date: ${currentDate}`
+    ];
+    
+    reportInfo.forEach(info => {
+      doc.text(info, 25, yPos);
+      yPos += 8;
+    });
+    
+    yPos += 10;
+    
+    // Report sections
+    for (const section of report.sections) {
+      // Check if we need a new page
+      if (yPos > 250) {
+        doc.addPage();
+        yPos = 20;
+      }
+      
+      // Section title
+      doc.setFontSize(12);
+      doc.setTextColor(30, 64, 175);
+      doc.text(section.title, 20, yPos);
+      yPos += 10;
+      
+      // Section content
+      doc.setFontSize(9);
+      doc.setTextColor(0, 0, 0);
+      
+      // Clean and format content
+      const cleanContent = section.content
+        .replace(/<[^>]*>/g, '') // Remove HTML tags
+        .replace(/\*\*(.*?)\*\*/g, '$1') // Remove markdown bold
+        .trim();
+      
+      const lines = doc.splitTextToSize(cleanContent, 170);
+      
+      for (let i = 0; i < lines.length; i++) {
+        if (yPos > 280) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.text(lines[i], 25, yPos);
+        yPos += 5;
+      }
+      
+      yPos += 10;
+    }
+    
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(107, 114, 128);
+      doc.text(`Generated on ${currentDate} by AgroFuture Connect`, 20, 285);
+      doc.text(`Page ${i} of ${pageCount}`, 170, 285);
+    }
+    
+    return Buffer.from(doc.output('arraybuffer'));
   }
 
   private formatContent(content: string): string {
