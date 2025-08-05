@@ -111,7 +111,18 @@ const ReportPreview: React.FC = () => {
     try {
       setDownloading(reportId);
 
-      const response = await fetch(`/api/reports/${sessionId}/${reportId}/download`);
+      // Use the enhanced export endpoint with ConvertAPI for better styling
+      const formData = new FormData();
+      formData.append('format', 'pdf');
+      formData.append('useDefaultLogo', 'false');
+      formData.append('stakeholderAudience', JSON.stringify([]));
+      formData.append('customInstructions', '');
+
+      const response = await fetch(`/api/reports/${sessionId}/${reportId}/export`, {
+        method: 'POST',
+        body: formData
+      });
+
       if (!response.ok) {
         throw new Error('Failed to download report');
       }
