@@ -86,8 +86,9 @@ app.use(cors({
   credentials: true
 }));
 app.use(morgan('combined'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Configure body parser with larger limits for base64 images
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve static files for uploaded images with proper headers
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads'), {
