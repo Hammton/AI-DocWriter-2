@@ -564,7 +564,7 @@ app.post('/api/convert/html-to-pdf', async (req, res) => {
         const cssResp = await fetch(process.env.PUBLIC_CSS_URL)
         if (cssResp.ok) {
           const cssText = await cssResp.text()
-          finalHtml = html.replace('</head>', `<style>${cssText}</style></head>')
+          finalHtml = html.replace('</head>', '<style>' + cssText + '</style></head>')
         }
       }
     } catch {}
@@ -605,7 +605,7 @@ app.post('/api/convert/html-to-docx', async (req, res) => {
         const cssResp = await fetch(process.env.PUBLIC_CSS_URL)
         if (cssResp.ok) {
           const cssText = await cssResp.text()
-          finalHtml = html.replace('</head>', `<style>${cssText}</style></head>')
+          finalHtml = html.replace('</head>', '<style>' + cssText + '</style></head>')
         }
       }
     } catch {}
