@@ -10,6 +10,7 @@ import { parseCSVFile, mapApplicationDataToTemplate, ApplicationData } from './s
 import { loadTemplate, generateReportContent, GeneratedReport } from './services/reportGenerator';
 import { generateReportPDF, generateReportPDFBuffer, generateSimplePDFBuffer, generateUltraSimplePDFBuffer, getGeneratedReportsDir } from './services/pdfGenerator';
 import { DocumentExporter, ExportOptions } from './services/documentExporter';
+import fetch from 'node-fetch';
 
 dotenv.config();
 
@@ -548,6 +549,65 @@ app.post('/api/upload-image', imageUpload.single('image'), (req, res) => {
     });
   }
 });
+
+// Third-party HTML conversion via ConvertAPI
+app.post('/api/convert/html-to-pdf', async (req, res) => {
+  try {
+    const secret = process.env.CONVERTAPI_SECRET
+    if (!secret) return res.status(400).json({ error: 'ConvertAPI not configured' })
+
+    const { html, url } = req.body || {}
+    const parameters: any[] = []
+    if (html) parameters.push({ Name: 'Html', Value: html })
+    if (url) parameters.push({ Name: 'Url', Value: url })
+    if (!parameters.length) return res.status(400).json({ error: 'Provide html or url' })
+
+    const resp = await fetch(`https://v2.convertapi.com/convert/html/to/pdf?Secret=${encodeURIComponent(secret)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ Parameters: parameters })
+    })
+    if (!resp.ok) return res.status(502).send(await resp.text())
+    const data = await resp.json() as any
+    const file = data.Files?.[0]
+    if (!file?.Url) return res.status(502).json({ error: 'No file URL returned' })
+    const pdfBuf = Buffer.from(await (await fetch(file.Url)).arrayBuffer())
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', 'attachment; filename="converted.pdf"')
+    return res.send(pdfBuf)
+  } catch (e: any) {
+    return res.status(500).json({ error: 'Convert failed', details: e?.message || String(e) })
+  }
+})
+
+app.post('/api/convert/html-to-docx', async (req, res) => {
+  try {
+    const secret = process.env.CONVERTAPI_SECRET
+    if (!secret) return res.status(400).json({ error: 'ConvertAPI not configured' })
+
+    const { html, url } = req.body || {}
+    const parameters: any[] = []
+    if (html) parameters.push({ Name: 'Html', Value: html })
+    if (url) parameters.push({ Name: 'Url', Value: url })
+    if (!parameters.length) return res.status(400).json({ error: 'Provide html or url' })
+
+    const resp = await fetch(`https://v2.convertapi.com/convert/html/to/docx?Secret=${encodeURIComponent(secret)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ Parameters: parameters })
+    })
+    if (!resp.ok) return res.status(502).send(await resp.text())
+    const data = await resp.json() as any
+    const file = data.Files?.[0]
+    if (!file?.Url) return res.status(502).json({ error: 'No file URL returned' })
+    const docxBuf = Buffer.from(await (await fetch(file.Url)).arrayBuffer())
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    res.setHeader('Content-Disposition', 'attachment; filename="converted.docx"')
+    return res.send(docxBuf)
+  } catch (e: any) {
+    return res.status(500).json({ error: 'Convert failed', details: e?.message || String(e) })
+  }
+})
 
 // Enhanced document export endpoint
 app.post('/api/reports/:sessionId/:reportId/export', logoUpload.single('customLogo'), async (req, res) => {
