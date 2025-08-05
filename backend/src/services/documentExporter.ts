@@ -947,17 +947,26 @@ export class DocumentExporter {
           yPos += 8;
         });
       } else {
-        // Render as regular text
-        const textLines = doc.splitTextToSize(cleanContent, 160);
+        // Render as regular text with better formatting
+        doc.setFontSize(12); // Set font size before splitTextToSize for accurate measurement
+        const textLines = doc.splitTextToSize(cleanContent, 155); // Reduced width for better wrapping
 
         for (let i = 0; i < textLines.length; i++) {
-          if (yPos > 270) {
+          if (yPos > 265) { // More conservative page break
             doc.addPage();
             yPos = 20;
           }
+
+          // Ensure consistent formatting for each line
           doc.setFontSize(12); // Raleway font size 12
-          doc.text(textLines[i], 25, yPos);
-          yPos += 6;
+          doc.setTextColor(0, 0, 0);
+
+          // Clean the line text to avoid formatting issues
+          const cleanLine = textLines[i].trim();
+          if (cleanLine) { // Only render non-empty lines
+            doc.text(cleanLine, 25, yPos);
+            yPos += 8; // Increased line spacing from 6 to 8 to prevent overlap
+          }
         }
       }
 
