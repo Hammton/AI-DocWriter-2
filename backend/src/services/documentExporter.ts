@@ -32,6 +32,19 @@ export class DocumentExporter {
   }
 
   private async generatePDF(report: GeneratedReport, options: ExportOptions): Promise<Buffer> {
+    // Try ConvertAPI first if available (better styling preservation)
+    if (process.env.CONVERTAPI_SECRET) {
+      try {
+        console.log('🔄 Using ConvertAPI for PDF generation (better styling)');
+        return await this.generatePDFWithConvertAPI(report, options);
+      } catch (error) {
+        console.warn('⚠️ ConvertAPI failed, falling back to Puppeteer:', error);
+        // Fall through to Puppeteer fallback
+      }
+    }
+
+    // Fallback to Puppeteer
+    console.log('🔄 Using Puppeteer for PDF generation (fallback)');
     const isVercel = process.env.VERCEL === '1';
     
     const browser = await puppeteer.launch({
@@ -396,6 +409,339 @@ export class DocumentExporter {
     
     const lastStakeholder = stakeholders.pop();
     return stakeholders.join(', ') + ', and ' + lastStakeholder;
+  }
+
+  private async generatePDFWithConvertAPI(report: GeneratedReport, options: ExportOptions): Promise<Buffer> {
+    const secret = process.env.CONVERTAPI_SECRET;
+    if (!secret) {
+      throw new Error('ConvertAPI secret not configured');
+    }
+
+    // Generate enhanced HTML with better styling for ConvertAPI
+    const htmlContent = await this.generateEnhancedHTMLForConvertAPI(report, options);
+    
+    const parameters: any[] = [
+      { Name: 'Html', Value: htmlContent },
+      { Name: 'PageSize', Value: 'A4' },
+      { Name: 'MarginTop', Value: '20' },
+      { Name: 'MarginRight', Value: '15' },
+      { Name: 'MarginBottom', Value: '20' },
+      { Name: 'MarginLeft', Value: '15' },
+      { Name: 'PrintBackground', Value: 'true' },
+      { Name: 'LoadErrorHandling', Value: 'skip' },
+      { Name: 'WaitTime', Value: '3' }
+    ];
+
+    const response = await fetch(`https://v2.convertapi.com/convert/html/to/pdf?Secret=${encodeURIComponent(secret)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ Parameters: parameters })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`ConvertAPI request failed: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json() as any;
+    const file = data.Files?.[0];
+    if (!file?.Url) {
+      throw new Error('No file URL returned from ConvertAPI');
+    }
+
+    const pdfResponse = await fetch(file.Url);
+    if (!pdfResponse.ok) {
+      throw new Error('Failed to download PDF from ConvertAPI');
+    }
+
+    return Buffer.from(await pdfResponse.arrayBuffer());
+  }
+
+  private async generateEnhancedHTMLForConvertAPI(report: GeneratedReport, options: ExportOptions): Promise<string> {
+    const logoBase64 = await this.getLogoAsBase64(options);
+    const stakeholderText = this.formatStakeholderAudience(options.stakeholderAudience);
+    const currentDate = new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${report.title}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 20mm 15mm 20mm 15mm;
+        }
+        
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+        }
+        
+        body {
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #ffffff;
+            color: #333333;
+            font-size: 11pt;
+        }
+        
+        .page-container {
+            max-width: 210mm;
+            margin: 0 auto;
+            padding: 20mm 15mm;
+            background: white;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #2563eb;
+            padding-bottom: 20px;
+            background-color: #ffffff;
+        }
+        
+        .logo {
+            margin-bottom: 15px;
+        }
+        
+        .logo img {
+            max-height: 60px;
+            max-width: 180px;
+            object-fit: contain;
+        }
+        
+        .organization-name {
+            color: #2563eb !important;
+            font-size: 24pt;
+            font-weight: bold;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        
+        .report-title {
+            font-size: 18pt;
+            color: #1e40af !important;
+            margin: 8px 0;
+            font-weight: 600;
+            text-align: center;
+        }
+        
+        .subtitle {
+            font-size: 11pt;
+            color: #64748b !important;
+            margin: 4px 0;
+            text-align: center;
+        }
+        
+        .metadata {
+            background-color: #f8fafc !important;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            border-left: 4px solid #2563eb !important;
+            page-break-inside: avoid;
+        }
+        
+        .metadata h3 {
+            color: #1e40af !important;
+            font-size: 13pt;
+            margin: 0 0 10px 0;
+            font-weight: 600;
+        }
+        
+        .section {
+            margin: 25px 0;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+        
+        .section-title {
+            font-size: 14pt;
+            color: #1e40af !important;
+            margin-bottom: 12px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid #e2e8f0 !important;
+            font-weight: 600;
+            page-break-after: avoid;
+        }
+        
+        .section-content {
+            margin-left: 8px;
+            line-height: 1.7;
+            font-size: 10pt;
+        }
+        
+        .section-content p {
+            margin: 8px 0;
+            text-align: justify;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+            font-size: 10pt;
+            page-break-inside: avoid;
+        }
+        
+        .table th, .table td {
+            border: 1px solid #d1d5db !important;
+            padding: 8px 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+        
+        .table th {
+            background-color: #f3f4f6 !important;
+            font-weight: 600;
+            color: #374151 !important;
+        }
+        
+        .table tr:nth-child(even) {
+            background-color: #f9fafb !important;
+        }
+        
+        .highlight {
+            background-color: #fef3c7 !important;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #6b7280 !important;
+            font-size: 9pt;
+            border-top: 1px solid #e5e7eb !important;
+            padding-top: 15px;
+            page-break-inside: avoid;
+        }
+        
+        .stakeholder-info {
+            background-color: #eff6ff !important;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 15px 0;
+            border-left: 4px solid #3b82f6 !important;
+            page-break-inside: avoid;
+        }
+        
+        .stakeholder-info h3 {
+            color: #1e40af !important;
+            font-size: 12pt;
+            margin: 0 0 8px 0;
+            font-weight: 600;
+        }
+        
+        .stakeholder-info p {
+            margin: 0;
+            font-size: 10pt;
+        }
+        
+        /* Enhanced list styling */
+        ul, ol {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+        
+        li {
+            margin: 4px 0;
+            line-height: 1.5;
+        }
+        
+        /* Strong text styling */
+        strong, b {
+            font-weight: 600;
+            color: #1f2937 !important;
+        }
+        
+        /* Page break controls */
+        .page-break {
+            page-break-before: always;
+        }
+        
+        .no-break {
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+        
+        @media print {
+            body { 
+                margin: 0; 
+                padding: 0;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .page-container {
+                margin: 0;
+                padding: 0;
+            }
+            .section { 
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            .metadata, .stakeholder-info {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <div class="header no-break">
+            ${logoBase64 ? `<div class="logo"><img src="${logoBase64}" alt="Organization Logo" /></div>` : ''}
+            <div class="organization-name">${report.organizationName}</div>
+            <h1 class="report-title">${report.title}</h1>
+            <div class="subtitle">Application Owner: ${report.metadata.applicationId}</div>
+            <div class="subtitle">Report Owner: Enterprise Architecture</div>
+        </div>
+
+        ${stakeholderText ? `
+        <div class="stakeholder-info no-break">
+            <h3>Stakeholder Audience</h3>
+            <p>${stakeholderText}</p>
+        </div>
+        ` : ''}
+
+        <div class="metadata no-break">
+            <h3>Report Information</h3>
+            <table class="table">
+                <tr><td><strong>Application ID:</strong></td><td>${report.metadata.applicationId}</td></tr>
+                <tr><td><strong>Application Name:</strong></td><td>${report.applicationName}</td></tr>
+                <tr><td><strong>Organization:</strong></td><td>${report.organizationName}</td></tr>
+                <tr><td><strong>Status:</strong></td><td>Active</td></tr>
+                <tr><td><strong>Generated Date:</strong></td><td>${currentDate}</td></tr>
+            </table>
+        </div>
+
+        ${report.sections.map(section => `
+            <div class="section no-break">
+                <h2 class="section-title">${section.title}</h2>
+                <div class="section-content">
+                    ${this.formatContent(section.content)}
+                </div>
+            </div>
+        `).join('')}
+
+        <div class="footer no-break">
+            <p>This report was generated on ${currentDate} by AgroFuture Connect</p>
+            ${stakeholderText ? `<p>Stakeholder Audience: ${stakeholderText}</p>` : ''}
+        </div>
+    </div>
+</body>
+</html>
+`;
   }
 
   private formatContent(content: string): string {
