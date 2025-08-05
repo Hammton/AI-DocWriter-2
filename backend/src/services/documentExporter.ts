@@ -903,70 +903,92 @@ export class DocumentExporter {
         .replace(/\*\*(.*?)\*\*/g, '$1') // Remove markdown bold
         .trim();
 
-      // Check if content contains structured data that could be a table
+      // Smart content detection - render tables when appropriate, text otherwise
       const lines = cleanContent.split('\n').filter(line => line.trim());
       let hasTableData = false;
       const tableRows: string[][] = [];
-
-      // Try to detect table-like content
+      
+      // Detect table-like content (key: value pairs)
       lines.forEach(line => {
         if (line.includes(':') && line.split(':').length === 2) {
           const [key, value] = line.split(':').map(s => s.trim());
-          if (key && value) {
+          if (key && value && key.length < 50 && value.length < 100) { // Reasonable key-value pairs
             tableRows.push([key, value]);
             hasTableData = true;
           }
         }
       });
-
-      if (hasTableData && tableRows.length > 0) {
-        // Render as table
+      
+      // Only render as table if we have clear key-value pairs and not too much other content
+      const nonTableLines = lines.filter(line => !line.includes(':') || line.split(':').length !== 2);
+      const shouldRenderAsTable = hasTableData && tableRows.length >= 2 && nonTableLines.length < tableRows.length;
+      
+      if (shouldRenderAsTable) {
+        // Render as professional table
         tableRows.forEach((row, index) => {
-          if (yPos > 270) {
+          if (yPos > 260) {
             doc.addPage();
             yPos = 20;
           }
-
-          // Alternate row colors
+          
+          // Alternate row colors for better readability
           if (index % 2 === 0) {
             doc.setFillColor(249, 250, 251);
-            doc.rect(25, yPos - 4, 160, 8, 'F');
+            doc.rect(25, yPos - 4, 160, 10, 'F');
           }
-
+          
           doc.setFontSize(12); // Raleway font size 12
-          doc.setTextColor(55, 65, 81);
+          doc.setTextColor(55, 65, 81); // Darker gray for keys
           doc.text(row[0], 30, yPos);
-          doc.setTextColor(0, 0, 0);
+          doc.setTextColor(0, 0, 0); // Black for values
           doc.text(row[1], 110, yPos);
-
-          // Draw borders
+          
+          // Draw subtle borders
           doc.setDrawColor(229, 231, 235);
           doc.setLineWidth(0.3);
-          doc.line(25, yPos + 4, 185, yPos + 4);
-
-          yPos += 8;
+          doc.line(25, yPos + 6, 185, yPos + 6);
+          
+          yPos += 10;
         });
       } else {
-        // Render as regular text with better formatting
-        doc.setFontSize(12); // Set font size before splitTextToSize for accurate measurement
-        const textLines = doc.splitTextToSize(cleanContent, 155); // Reduced width for better wrapping
-
-        for (let i = 0; i < textLines.length; i++) {
-          if (yPos > 265) { // More conservative page break
+        // Render as improved text with better spacing
+        doc.setFontSize(12);
+        doc.setTextColor(0, 0, 0);
+        
+        // Split content into paragraphs for better formatting
+        const paragraphs = cleanContent.split('\n\n').filter(p => p.trim());
+        
+        if (paragraphs.length === 0) {
+          paragraphs.push(cleanContent);
+        }
+        
+        for (const paragraph of paragraphs) {
+          if (yPos > 250) {
             doc.addPage();
             yPos = 20;
           }
-
-          // Ensure consistent formatting for each line
-          doc.setFontSize(12); // Raleway font size 12
-          doc.setTextColor(0, 0, 0);
-
-          // Clean the line text to avoid formatting issues
-          const cleanLine = textLines[i].trim();
-          if (cleanLine) { // Only render non-empty lines
-            doc.text(cleanLine, 25, yPos);
-            yPos += 8; // Increased line spacing from 6 to 8 to prevent overlap
+          
+          // Split paragraph into lines that fit the width
+          const textLines = doc.splitTextToSize(paragraph.trim(), 145);
+          
+          for (let i = 0; i < textLines.length; i++) {
+            if (yPos > 250) {
+              doc.addPage();
+              yPos = 20;
+            }
+            
+            doc.setFontSize(12); // Raleway font size 12
+            doc.setTextColor(0, 0, 0);
+            
+            const cleanLine = textLines[i].trim();
+            if (cleanLine) {
+              doc.text(cleanLine, 25, yPos);
+              yPos += 10; // Good line spacing to prevent overlap
+            }
           }
+          
+          // Add space between paragraphs
+          yPos += 8;
         }
       }
 
