@@ -32,6 +32,10 @@ export class DocumentExporter {
   }
 
   private async generatePDF(report: GeneratedReport, options: ExportOptions): Promise<Buffer> {
+    // TEMPORARY: Skip slow methods and go directly to fast simple PDF
+    console.log('🚀 Using fast simple PDF generation (skipping slow methods)');
+    return await this.generateSimplePDF(report, options);
+
     // Try ConvertAPI first if available (better styling preservation)
     if (process.env.CONVERTAPI_SECRET) {
       try {
