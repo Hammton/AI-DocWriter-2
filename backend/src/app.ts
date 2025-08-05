@@ -10,7 +10,6 @@ import { parseCSVFile, mapApplicationDataToTemplate, ApplicationData } from './s
 import { loadTemplate, generateReportContent, GeneratedReport } from './services/reportGenerator';
 import { generateReportPDF, generateReportPDFBuffer, generateSimplePDFBuffer, generateUltraSimplePDFBuffer, getGeneratedReportsDir } from './services/pdfGenerator';
 import { DocumentExporter, ExportOptions } from './services/documentExporter';
-import fetch from 'node-fetch';
 
 dotenv.config();
 
