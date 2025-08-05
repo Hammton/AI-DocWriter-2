@@ -1,4 +1,4 @@
-import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, Header, Footer } from 'docx';
+import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, Header, Footer, TextRun } from 'docx';
 import { GeneratedReport } from './reportGenerator';
 import fs from 'fs';
 import path from 'path';
@@ -40,20 +40,34 @@ export class DocumentExporter {
       // Simplified DOCX generation without complex headers/footers to avoid issues
       const content: any[] = [];
 
-      // Add logo at the top of the document content 
+      // Add logo at the top of the document content with Raleway font
       // Note: Using text placeholders for logos in DOCX to ensure compatibility
       // Future enhancement: Implement proper ImageRun handling with better error recovery
       if (options.useDefaultLogo) {
         content.push(
           new Paragraph({
-            text: "🏢 DQ LOGO",
+            children: [
+              new TextRun({
+                text: "🏢 DQ LOGO",
+                font: "Raleway",
+                size: 28, // 14pt for logo text
+                bold: true,
+              }),
+            ],
             alignment: AlignmentType.CENTER,
           })
         );
       } else if (options.logoPath) {
         content.push(
           new Paragraph({
-            text: "🖼️ [CUSTOM LOGO]",
+            children: [
+              new TextRun({
+                text: "🖼️ [CUSTOM LOGO]",
+                font: "Raleway",
+                size: 28, // 14pt for logo text
+                bold: true,
+              }),
+            ],
             alignment: AlignmentType.CENTER,
           })
         );
@@ -63,13 +77,20 @@ export class DocumentExporter {
       const documentContent = await this.generateDOCXContent(report, options);
       content.push(...documentContent);
 
-      // Add footer information at the end of the document
+      // Add footer information at the end of the document with Raleway font
       content.push(
         new Paragraph({
           text: "",
         }), // Empty line
         new Paragraph({
-          text: `Generated on ${currentDate} by AI DocWriter 4.0`,
+          children: [
+            new TextRun({
+              text: `Generated on ${currentDate} by AI DocWriter 4.0`,
+              font: "Raleway",
+              size: 20, // 10pt for footer text
+              italics: true,
+            }),
+          ],
           alignment: AlignmentType.CENTER,
         })
       );
@@ -77,13 +98,30 @@ export class DocumentExporter {
       if (options.stakeholderAudience && options.stakeholderAudience.length > 0) {
         content.push(
           new Paragraph({
-            text: `Stakeholder Audience: ${this.formatStakeholderAudience(options.stakeholderAudience)}`,
+            children: [
+              new TextRun({
+                text: `Stakeholder Audience: ${this.formatStakeholderAudience(options.stakeholderAudience)}`,
+                font: "Raleway",
+                size: 20, // 10pt for footer text
+                italics: true,
+              }),
+            ],
             alignment: AlignmentType.CENTER,
           })
         );
       }
 
       const doc = new Document({
+        styles: {
+          default: {
+            document: {
+              run: {
+                font: "Raleway",
+                size: 24, // 12pt = 24 half-points in docx
+              },
+            },
+          },
+        },
         sections: [{
           properties: {},
           children: content
@@ -439,50 +477,97 @@ export class DocumentExporter {
       day: 'numeric'
     });
 
-    // Title (no logo for DOCX to avoid file system issues)
+    // Title with Raleway font
     content.push(
       new Paragraph({
-        text: report.organizationName,
+        children: [
+          new TextRun({
+            text: report.organizationName,
+            font: "Raleway",
+            size: 32, // 16pt for title
+            bold: true,
+          }),
+        ],
         heading: HeadingLevel.TITLE,
         alignment: AlignmentType.CENTER,
       }),
       new Paragraph({
-        text: report.title,
+        children: [
+          new TextRun({
+            text: report.title,
+            font: "Raleway",
+            size: 28, // 14pt for heading 1
+            bold: true,
+          }),
+        ],
         heading: HeadingLevel.HEADING_1,
         alignment: AlignmentType.CENTER,
       })
     );
 
-    // Stakeholder audience
+    // Stakeholder audience with Raleway font
     if (options.stakeholderAudience && options.stakeholderAudience.length > 0) {
       content.push(
         new Paragraph({
-          text: "Stakeholder Audience",
+          children: [
+            new TextRun({
+              text: "Stakeholder Audience",
+              font: "Raleway",
+              size: 26, // 13pt for heading 2
+              bold: true,
+            }),
+          ],
           heading: HeadingLevel.HEADING_2,
         }),
         new Paragraph({
-          text: this.formatStakeholderAudience(options.stakeholderAudience),
+          children: [
+            new TextRun({
+              text: this.formatStakeholderAudience(options.stakeholderAudience),
+              font: "Raleway",
+              size: 24, // 12pt for body text
+            }),
+          ],
         })
       );
     }
 
-    // Report sections
+    // Report sections with Raleway font
     for (const section of report.sections) {
       content.push(
         new Paragraph({
-          text: section.title,
+          children: [
+            new TextRun({
+              text: section.title,
+              font: "Raleway",
+              size: 26, // 13pt for heading 2
+              bold: true,
+            }),
+          ],
           heading: HeadingLevel.HEADING_2,
         }),
         new Paragraph({
-          text: section.content.replace(/<[^>]*>/g, ''), // Strip HTML tags
+          children: [
+            new TextRun({
+              text: section.content.replace(/<[^>]*>/g, ''), // Strip HTML tags
+              font: "Raleway",
+              size: 24, // 12pt for body text
+            }),
+          ],
         })
       );
     }
 
-    // Footer
+    // Footer with Raleway font
     content.push(
       new Paragraph({
-        text: `This report was generated on ${currentDate} by AI DocWriter 4.0`,
+        children: [
+          new TextRun({
+            text: `This report was generated on ${currentDate} by AI DocWriter 4.0`,
+            font: "Raleway",
+            size: 20, // 10pt for footer text
+            italics: true,
+          }),
+        ],
         alignment: AlignmentType.CENTER,
       })
     );
@@ -490,7 +575,14 @@ export class DocumentExporter {
     if (options.stakeholderAudience && options.stakeholderAudience.length > 0) {
       content.push(
         new Paragraph({
-          text: `Stakeholder Audience: ${this.formatStakeholderAudience(options.stakeholderAudience)}`,
+          children: [
+            new TextRun({
+              text: `Stakeholder Audience: ${this.formatStakeholderAudience(options.stakeholderAudience)}`,
+              font: "Raleway",
+              size: 20, // 10pt for footer text
+              italics: true,
+            }),
+          ],
           alignment: AlignmentType.CENTER,
         })
       );
