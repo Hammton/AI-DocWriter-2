@@ -47,7 +47,7 @@ export class DocumentExporter {
     try {
       console.log('🔄 Using Puppeteer for PDF generation (fallback)');
       const isVercel = process.env.VERCEL === '1';
-      
+
       const browser = await puppeteer.launch({
         args: isVercel ? [
           ...chromium.args,
@@ -77,12 +77,12 @@ export class DocumentExporter {
 
       try {
         const page = await browser.newPage();
-        
+
         // Generate HTML with logo and stakeholder audience
         const htmlContent = await this.generateHTMLWithLogo(report, options);
-        
+
         await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-        
+
         const pdfBuffer = await page.pdf({
           format: 'A4',
           printBackground: true,
@@ -119,10 +119,10 @@ export class DocumentExporter {
   private async generateHTMLWithLogo(report: GeneratedReport, options: ExportOptions): Promise<string> {
     const logoBase64 = await this.getLogoAsBase64(options);
     const stakeholderText = this.formatStakeholderAudience(options.stakeholderAudience);
-    const currentDate = new Date().toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
 
     return `
@@ -283,10 +283,10 @@ export class DocumentExporter {
 
   private async generateDOCXContent(report: GeneratedReport, options: ExportOptions): Promise<any[]> {
     const content: any[] = [];
-    const currentDate = new Date().toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
 
     // Add logo if available
@@ -378,7 +378,7 @@ export class DocumentExporter {
   private async getLogoAsBase64(options: ExportOptions): Promise<string | null> {
     try {
       let logoPath: string | null = null;
-      
+
       if (options.logoPath && fs.existsSync(options.logoPath)) {
         logoPath = options.logoPath;
       } else if (options.useDefaultLogo && fs.existsSync(this.defaultLogoPath)) {
@@ -409,10 +409,10 @@ export class DocumentExporter {
 
   private formatStakeholderAudience(stakeholders?: string[]): string {
     if (!stakeholders || stakeholders.length === 0) return '';
-    
+
     if (stakeholders.length === 1) return stakeholders[0];
     if (stakeholders.length === 2) return stakeholders.join(' and ');
-    
+
     const lastStakeholder = stakeholders.pop();
     return stakeholders.join(', ') + ', and ' + lastStakeholder;
   }
@@ -425,13 +425,14 @@ export class DocumentExporter {
 
     // Generate enhanced HTML with better styling for ConvertAPI
     const htmlContent = await this.generateEnhancedHTMLForConvertAPI(report, options);
-    
+
     // Debug: Check HTML content
     console.log('📄 HTML content length:', htmlContent.length);
     if (htmlContent.length < 100) {
       console.warn('⚠️ HTML content seems too short:', htmlContent.substring(0, 200));
     }
-    
+
+    // Use the existing working approach from app.ts - send HTML directly in JSON
     const parameters: any[] = [
       { Name: 'Html', Value: htmlContent },
       { Name: 'PageSize', Value: 'A4' },
@@ -444,7 +445,7 @@ export class DocumentExporter {
       { Name: 'WaitTime', Value: '5' }
     ];
 
-    console.log('🚀 Sending request to ConvertAPI...');
+    console.log('🚀 Sending JSON request to ConvertAPI...');
     const response = await fetch(`https://v2.convertapi.com/convert/html/to/pdf?Secret=${encodeURIComponent(secret)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -459,7 +460,7 @@ export class DocumentExporter {
 
     const data = await response.json() as any;
     console.log('✅ ConvertAPI response received:', { filesCount: data.Files?.length });
-    
+
     const file = data.Files?.[0];
     if (!file?.Url) {
       console.error('❌ No file URL in response:', data);
@@ -474,17 +475,17 @@ export class DocumentExporter {
 
     const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
     console.log('✅ PDF downloaded successfully, size:', pdfBuffer.length, 'bytes');
-    
+
     return pdfBuffer;
   }
 
   private async generateEnhancedHTMLForConvertAPI(report: GeneratedReport, options: ExportOptions): Promise<string> {
     const logoBase64 = await this.getLogoAsBase64(options);
     const stakeholderText = this.formatStakeholderAudience(options.stakeholderAudience);
-    const currentDate = new Date().toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
 
     return `
@@ -767,115 +768,225 @@ export class DocumentExporter {
 
   private async generateSimplePDF(report: GeneratedReport, options: ExportOptions): Promise<Buffer> {
     console.log('📄 Using simple PDF generation (jsPDF fallback)');
-    
-    // Import jsPDF dynamically to avoid issues
+
+    // Import jsPDF and autoTable for better table formatting
     const { jsPDF } = await import('jspdf');
-    
+
     const doc = new jsPDF();
-    const currentDate = new Date().toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
 
-    // Title and header
+    // Set default font to Raleway (fallback to Helvetica if not available)
+    try {
+      doc.setFont('Raleway', 'normal');
+    } catch {
+      doc.setFont('helvetica', 'normal');
+    }
+
+    // Title and header with Raleway font size 12
     doc.setFontSize(20);
     doc.setTextColor(37, 99, 235); // Blue color
     doc.text(report.organizationName, 20, 30);
-    
+
     doc.setFontSize(16);
     doc.setTextColor(30, 64, 175); // Darker blue
     doc.text(report.title, 20, 45);
-    
-    doc.setFontSize(12);
+
+    doc.setFontSize(12); // Raleway font size 12 as requested
     doc.setTextColor(100, 116, 139); // Gray
     doc.text(`Application Owner: ${report.metadata.applicationId}`, 20, 55);
     doc.text('Report Owner: Enterprise Architecture', 20, 65);
-    
+
     // Line separator
     doc.setDrawColor(37, 99, 235);
     doc.setLineWidth(1);
     doc.line(20, 75, 190, 75);
-    
-    // Report Information
+
+    // Report Information Table
     doc.setFontSize(14);
     doc.setTextColor(30, 64, 175);
     doc.text('Report Information', 20, 90);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
+
     let yPos = 100;
-    
-    const reportInfo = [
-      `Application ID: ${report.metadata.applicationId}`,
-      `Application Name: ${report.applicationName}`,
-      `Organization: ${report.organizationName}`,
-      `Status: Active`,
-      `Generated Date: ${currentDate}`
+
+    // Create a proper table for report information
+    const reportInfoData = [
+      ['Application ID', report.metadata.applicationId],
+      ['Application Name', report.applicationName],
+      ['Organization', report.organizationName],
+      ['Status', 'Active'],
+      ['Generated Date', currentDate]
     ];
-    
-    reportInfo.forEach(info => {
-      doc.text(info, 25, yPos);
+
+    // Draw table manually with better formatting
+    doc.setFontSize(12); // Raleway font size 12
+    doc.setTextColor(0, 0, 0);
+
+    // Table headers
+    doc.setFillColor(243, 244, 246); // Light gray background
+    doc.rect(20, yPos - 5, 170, 8, 'F');
+    doc.setTextColor(55, 65, 81); // Dark gray text
+    doc.setFontSize(10);
+    doc.text('Field', 25, yPos);
+    doc.text('Value', 100, yPos);
+
+    // Draw header border
+    doc.setDrawColor(209, 213, 219);
+    doc.setLineWidth(0.5);
+    doc.line(20, yPos - 5, 190, yPos - 5); // Top
+    doc.line(20, yPos + 3, 190, yPos + 3); // Bottom
+    doc.line(20, yPos - 5, 20, yPos + 3); // Left
+    doc.line(95, yPos - 5, 95, yPos + 3); // Middle
+    doc.line(190, yPos - 5, 190, yPos + 3); // Right
+
+    yPos += 10;
+
+    // Table rows
+    reportInfoData.forEach((row, index) => {
+      // Alternate row colors
+      if (index % 2 === 0) {
+        doc.setFillColor(249, 250, 251); // Very light gray
+        doc.rect(20, yPos - 5, 170, 8, 'F');
+      }
+
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(12); // Raleway font size 12
+      doc.text(row[0], 25, yPos);
+      doc.text(row[1], 100, yPos);
+
+      // Draw row borders
+      doc.setDrawColor(209, 213, 219);
+      doc.line(20, yPos + 3, 190, yPos + 3); // Bottom
+      doc.line(20, yPos - 5, 20, yPos + 3); // Left
+      doc.line(95, yPos - 5, 95, yPos + 3); // Middle
+      doc.line(190, yPos - 5, 190, yPos + 3); // Right
+
       yPos += 8;
     });
-    
-    yPos += 10;
-    
-    // Report sections
+
+    yPos += 15;
+
+    // Report sections with better formatting
     for (const section of report.sections) {
       // Check if we need a new page
-      if (yPos > 250) {
+      if (yPos > 240) {
         doc.addPage();
         yPos = 20;
       }
-      
-      // Section title
-      doc.setFontSize(12);
+
+      // Section title with background
+      doc.setFillColor(239, 246, 255); // Light blue background
+      doc.rect(20, yPos - 5, 170, 12, 'F');
+      doc.setDrawColor(37, 99, 235);
+      doc.setLineWidth(2);
+      doc.line(20, yPos + 7, 190, yPos + 7); // Bottom border
+
+      doc.setFontSize(14);
       doc.setTextColor(30, 64, 175);
-      doc.text(section.title, 20, yPos);
-      yPos += 10;
-      
-      // Section content
-      doc.setFontSize(9);
+      doc.text(section.title, 25, yPos + 2);
+      yPos += 20;
+
+      // Section content with Raleway font size 12
+      doc.setFontSize(12); // Raleway font size 12 as requested
       doc.setTextColor(0, 0, 0);
-      
+
       // Clean and format content
       const cleanContent = section.content
         .replace(/<[^>]*>/g, '') // Remove HTML tags
         .replace(/\*\*(.*?)\*\*/g, '$1') // Remove markdown bold
         .trim();
-      
-      const lines = doc.splitTextToSize(cleanContent, 170);
-      
-      for (let i = 0; i < lines.length; i++) {
-        if (yPos > 280) {
-          doc.addPage();
-          yPos = 20;
+
+      // Check if content contains structured data that could be a table
+      const lines = cleanContent.split('\n').filter(line => line.trim());
+      let hasTableData = false;
+      const tableRows: string[][] = [];
+
+      // Try to detect table-like content
+      lines.forEach(line => {
+        if (line.includes(':') && line.split(':').length === 2) {
+          const [key, value] = line.split(':').map(s => s.trim());
+          if (key && value) {
+            tableRows.push([key, value]);
+            hasTableData = true;
+          }
         }
-        doc.text(lines[i], 25, yPos);
-        yPos += 5;
+      });
+
+      if (hasTableData && tableRows.length > 0) {
+        // Render as table
+        tableRows.forEach((row, index) => {
+          if (yPos > 270) {
+            doc.addPage();
+            yPos = 20;
+          }
+
+          // Alternate row colors
+          if (index % 2 === 0) {
+            doc.setFillColor(249, 250, 251);
+            doc.rect(25, yPos - 4, 160, 8, 'F');
+          }
+
+          doc.setFontSize(12); // Raleway font size 12
+          doc.setTextColor(55, 65, 81);
+          doc.text(row[0], 30, yPos);
+          doc.setTextColor(0, 0, 0);
+          doc.text(row[1], 110, yPos);
+
+          // Draw borders
+          doc.setDrawColor(229, 231, 235);
+          doc.setLineWidth(0.3);
+          doc.line(25, yPos + 4, 185, yPos + 4);
+
+          yPos += 8;
+        });
+      } else {
+        // Render as regular text
+        const textLines = doc.splitTextToSize(cleanContent, 160);
+
+        for (let i = 0; i < textLines.length; i++) {
+          if (yPos > 270) {
+            doc.addPage();
+            yPos = 20;
+          }
+          doc.setFontSize(12); // Raleway font size 12
+          doc.text(textLines[i], 25, yPos);
+          yPos += 6;
+        }
       }
-      
-      yPos += 10;
+
+      yPos += 15;
     }
-    
-    // Footer
+
+    // Enhanced footer with table-like formatting
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
-      doc.setFontSize(8);
+
+      // Footer background
+      doc.setFillColor(248, 250, 252);
+      doc.rect(20, 275, 170, 15, 'F');
+
+      // Footer border
+      doc.setDrawColor(229, 231, 235);
+      doc.setLineWidth(0.5);
+      doc.line(20, 275, 190, 275);
+
+      doc.setFontSize(10);
       doc.setTextColor(107, 114, 128);
-      doc.text(`Generated on ${currentDate} by AgroFuture Connect`, 20, 285);
-      doc.text(`Page ${i} of ${pageCount}`, 170, 285);
+      doc.text(`Generated on ${currentDate} by AgroFuture Connect`, 25, 283);
+      doc.text(`Page ${i} of ${pageCount}`, 160, 283);
     }
-    
+
     return Buffer.from(doc.output('arraybuffer'));
   }
 
   private formatContent(content: string): string {
     // Convert newlines to paragraphs
     const paragraphs = content.split('\n').filter(p => p.trim());
-    
+
     return paragraphs.map(paragraph => {
       // Check if it's a list item
       if (paragraph.trim().match(/^\d+\./)) {
