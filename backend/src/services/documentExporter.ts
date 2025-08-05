@@ -1,8 +1,7 @@
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun } from 'docx';
+import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, Header, Footer } from 'docx';
+import { GeneratedReport } from './reportGenerator';
 import fs from 'fs';
 import path from 'path';
-import sharp from 'sharp';
-import { GeneratedReport } from './reportGenerator';
 
 export interface ExportOptions {
   format: 'pdf' | 'docx';
@@ -12,16 +11,10 @@ export interface ExportOptions {
   customInstructions?: string;
 }
 
-export interface LogoConfig {
-  path: string;
-  width: number;
-  height: number;
-}
-
 export class DocumentExporter {
-  private defaultLogoPath = path.join(__dirname, '../../public/assets/dq-logo.png');
-
   async exportDocument(report: GeneratedReport, options: ExportOptions): Promise<Buffer> {
+    console.log(`🚀 Exporting ${options.format.toUpperCase()} - Vercel compatible version`);
+
     if (options.format === 'pdf') {
       return this.generatePDF(report, options);
     } else {
@@ -35,9 +28,122 @@ export class DocumentExporter {
   }
 
   private async generateDOCX(report: GeneratedReport, options: ExportOptions): Promise<Buffer> {
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    // Create header with logo
+    const headerChildren: any[] = [];
+
+    // Add logo to header if specified
+    if (options.useDefaultLogo) {
+      try {
+        // Try to use the actual DQ logo from the project
+        const defaultLogoPath = this.getDefaultLogoPath();
+        if (defaultLogoPath) {
+          const logoBuffer = fs.readFileSync(defaultLogoPath);
+          headerChildren.push(
+            new Paragraph({
+              children: [
+                new ImageRun({
+                  data: logoBuffer,
+                  transformation: {
+                    width: 100,
+                    height: 50,
+                  },
+                }),
+              ],
+              alignment: AlignmentType.CENTER,
+            })
+          );
+        } else {
+          // Fallback to SVG logo
+          headerChildren.push(
+            new Paragraph({
+              children: [
+                new ImageRun({
+                  data: await this.createDQLogoBuffer(),
+                  transformation: {
+                    width: 100,
+                    height: 50,
+                  },
+                }),
+              ],
+              alignment: AlignmentType.CENTER,
+            })
+          );
+        }
+      } catch (error) {
+        console.warn('Failed to load default DQ logo for DOCX, using text fallback:', error);
+        // Add text placeholder instead
+        headerChildren.push(
+          new Paragraph({
+            text: "DQ LOGO",
+            alignment: AlignmentType.CENTER,
+          })
+        );
+      }
+    } else if (options.logoPath && fs.existsSync(options.logoPath)) {
+      try {
+        const logoBuffer = fs.readFileSync(options.logoPath);
+        headerChildren.push(
+          new Paragraph({
+            children: [
+              new ImageRun({
+                data: logoBuffer,
+                transformation: {
+                  width: 100,
+                  height: 50,
+                },
+              }),
+            ],
+            alignment: AlignmentType.CENTER,
+          })
+        );
+      } catch (error) {
+        console.warn('Failed to add custom logo to DOCX:', error);
+        // Add text placeholder instead
+        headerChildren.push(
+          new Paragraph({
+            text: "[CUSTOM LOGO]",
+            alignment: AlignmentType.CENTER,
+          })
+        );
+      }
+    }
+
+    // Create footer with stakeholder audience
+    const footerChildren: any[] = [
+      new Paragraph({
+        text: `Generated on ${currentDate} by AI DocWriter 4.0`,
+        alignment: AlignmentType.CENTER,
+      })
+    ];
+
+    if (options.stakeholderAudience && options.stakeholderAudience.length > 0) {
+      footerChildren.push(
+        new Paragraph({
+          text: `Stakeholder Audience: ${this.formatStakeholderAudience(options.stakeholderAudience)}`,
+          alignment: AlignmentType.CENTER,
+        })
+      );
+    }
+
     const doc = new Document({
       sections: [{
         properties: {},
+        headers: headerChildren.length > 0 ? {
+          default: new Header({
+            children: headerChildren,
+          }),
+        } : undefined,
+        footers: {
+          default: new Footer({
+            children: footerChildren,
+          }),
+        },
         children: await this.generateDOCXContent(report, options)
       }]
     });
@@ -46,7 +152,7 @@ export class DocumentExporter {
   }
 
   private async generateSimplePDF(report: GeneratedReport, options: ExportOptions): Promise<Buffer> {
-    console.log('📄 Using simple PDF generation (jsPDF fallback)');
+    console.log('📄 Using simple PDF generation with enhanced logo support');
 
     // Import jsPDF for PDF generation
     const { jsPDF } = await import('jspdf');
@@ -58,47 +164,86 @@ export class DocumentExporter {
       day: 'numeric'
     });
 
-    // Set default font to Raleway (fallback to Helvetica if not available)
+    // Set default font
     try {
-      doc.setFont('Raleway', 'normal');
-    } catch {
       doc.setFont('helvetica', 'normal');
+    } catch {
+      // Fallback if font setting fails
     }
 
     let yPos = 20;
 
-    // Add logo if specified (minimal header)
-    if (options.useDefaultLogo || options.logoPath) {
+    // Enhanced logo handling
+    if (options.useDefaultLogo) {
       try {
-        let logoBase64: string | null = null;
+        // Try to use the actual DQ logo from the project
+        const defaultLogoPath = this.getDefaultLogoPath();
+        if (defaultLogoPath) {
+          const logoBuffer = fs.readFileSync(defaultLogoPath);
+          const logoBase64 = logoBuffer.toString('base64');
+          const logoExt = path.extname(defaultLogoPath).toLowerCase();
 
-        if (options.logoPath && fs.existsSync(options.logoPath)) {
-          // Custom logo
-          const logoBuffer = await sharp(options.logoPath)
-            .resize(60, 30, { fit: 'inside', withoutEnlargement: true })
-            .png()
-            .toBuffer();
-          logoBase64 = `data:image/png;base64,${logoBuffer.toString('base64')}`;
-        } else if (options.useDefaultLogo && fs.existsSync(this.defaultLogoPath)) {
-          // DQ default logo
-          const logoBuffer = await sharp(this.defaultLogoPath)
-            .resize(60, 30, { fit: 'inside', withoutEnlargement: true })
-            .png()
-            .toBuffer();
-          logoBase64 = `data:image/png;base64,${logoBuffer.toString('base64')}`;
-        }
+          let format = 'PNG';
+          if (logoExt === '.jpg' || logoExt === '.jpeg') format = 'JPEG';
+          else if (logoExt === '.gif') format = 'GIF';
 
-        if (logoBase64) {
-          // Add logo at top right (minimal)
-          doc.addImage(logoBase64, 'PNG', 150, yPos, 40, 20);
+          // Add logo centered at top
+          doc.addImage(`data:image/${format.toLowerCase()};base64,${logoBase64}`, format, 85, yPos - 5, 20, 15);
+          yPos += 25;
+        } else {
+          // Fallback to text-based DQ logo
+          doc.setFillColor(37, 99, 235); // Blue background
+          doc.rect(85, yPos - 5, 20, 15, 'F');
+          doc.setFontSize(16);
+          doc.setTextColor(255, 255, 255); // White text
+          doc.text('DQ', 92, yPos + 5);
           yPos += 25;
         }
       } catch (error) {
-        console.warn('Failed to add logo to PDF:', error);
+        console.warn('Failed to load default DQ logo, using text fallback:', error);
+        // Fallback to text-based DQ logo
+        doc.setFillColor(37, 99, 235); // Blue background
+        doc.rect(85, yPos - 5, 20, 15, 'F');
+        doc.setFontSize(16);
+        doc.setTextColor(255, 255, 255); // White text
+        doc.text('DQ', 92, yPos + 5);
+        yPos += 25;
       }
+    } else if (options.logoPath && fs.existsSync(options.logoPath)) {
+      try {
+        // Try to add custom logo image
+        const logoBuffer = fs.readFileSync(options.logoPath);
+        const logoBase64 = logoBuffer.toString('base64');
+        const logoExt = path.extname(options.logoPath).toLowerCase();
+
+        let format = 'JPEG';
+        if (logoExt === '.png') format = 'PNG';
+        else if (logoExt === '.gif') format = 'GIF';
+
+        // Add logo centered at top
+        doc.addImage(`data:image/${format.toLowerCase()};base64,${logoBase64}`, format, 85, yPos - 5, 20, 15);
+        yPos += 25;
+      } catch (error) {
+        console.warn('Failed to add custom logo, using placeholder:', error);
+        // Fallback to placeholder
+        doc.setFillColor(229, 231, 235); // Light gray background
+        doc.rect(85, yPos - 5, 20, 15, 'F');
+        doc.setFontSize(10);
+        doc.setTextColor(100, 116, 139);
+        doc.text('LOGO', 92, yPos + 5);
+        yPos += 25;
+      }
+    } else if (!options.useDefaultLogo) {
+      // Custom logo selected but no file provided - show placeholder
+      doc.setFillColor(229, 231, 235); // Light gray background
+      doc.rect(85, yPos - 5, 20, 15, 'F');
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text('LOGO', 92, yPos + 5);
+      yPos += 25;
     }
 
-    // Title and header with Raleway font size 12
+    // Title and header
     doc.setFontSize(20);
     doc.setTextColor(37, 99, 235); // Blue color
     doc.text(report.organizationName, 20, yPos);
@@ -109,7 +254,7 @@ export class DocumentExporter {
     doc.text(report.title, 20, yPos);
     yPos += 10;
 
-    doc.setFontSize(12); // Raleway font size 12 as requested
+    doc.setFontSize(12);
     doc.setTextColor(100, 116, 139); // Gray
     doc.text(`Application Owner: ${report.metadata.applicationId}`, 20, yPos);
     yPos += 10;
@@ -138,7 +283,7 @@ export class DocumentExporter {
     ];
 
     // Draw table manually with better formatting
-    doc.setFontSize(12); // Raleway font size 12
+    doc.setFontSize(12);
     doc.setTextColor(0, 0, 0);
 
     // Table headers
@@ -169,7 +314,7 @@ export class DocumentExporter {
       }
 
       doc.setTextColor(0, 0, 0);
-      doc.setFontSize(12); // Raleway font size 12
+      doc.setFontSize(12);
       doc.text(row[0], 25, yPos);
       doc.text(row[1], 100, yPos);
 
@@ -205,8 +350,8 @@ export class DocumentExporter {
       doc.text(section.title, 25, yPos + 2);
       yPos += 20;
 
-      // Section content with Raleway font size 12
-      doc.setFontSize(12); // Raleway font size 12 as requested
+      // Section content
+      doc.setFontSize(12);
       doc.setTextColor(0, 0, 0);
 
       // Clean and format content
@@ -224,14 +369,14 @@ export class DocumentExporter {
       lines.forEach(line => {
         if (line.includes(':') && line.split(':').length === 2) {
           const [key, value] = line.split(':').map(s => s.trim());
-          if (key && value && key.length < 50 && value.length < 100) { // Reasonable key-value pairs
+          if (key && value && key.length < 50 && value.length < 100) {
             tableRows.push([key, value]);
             hasTableData = true;
           }
         }
       });
 
-      // Only render as table if we have clear key-value pairs and not too much other content
+      // Only render as table if we have clear key-value pairs
       const nonTableLines = lines.filter(line => !line.includes(':') || line.split(':').length !== 2);
       const shouldRenderAsTable = hasTableData && tableRows.length >= 2 && nonTableLines.length < tableRows.length;
 
@@ -243,13 +388,13 @@ export class DocumentExporter {
             yPos = 20;
           }
 
-          // Alternate row colors for better readability
+          // Alternate row colors
           if (index % 2 === 0) {
             doc.setFillColor(249, 250, 251);
             doc.rect(25, yPos - 4, 160, 10, 'F');
           }
 
-          doc.setFontSize(12); // Raleway font size 12
+          doc.setFontSize(12);
           doc.setTextColor(55, 65, 81); // Darker gray for keys
           doc.text(row[0], 30, yPos);
           doc.setTextColor(0, 0, 0); // Black for values
@@ -263,11 +408,11 @@ export class DocumentExporter {
           yPos += 10;
         });
       } else {
-        // Render as improved text with better spacing
+        // Render as improved text
         doc.setFontSize(12);
         doc.setTextColor(0, 0, 0);
 
-        // Split content into paragraphs for better formatting
+        // Split content into paragraphs
         const paragraphs = cleanContent.split('\n\n').filter(p => p.trim());
 
         if (paragraphs.length === 0) {
@@ -280,7 +425,7 @@ export class DocumentExporter {
             yPos = 20;
           }
 
-          // Split paragraph into lines that fit the width
+          // Split paragraph into lines that fit
           const textLines = doc.splitTextToSize(paragraph.trim(), 145);
 
           for (let i = 0; i < textLines.length; i++) {
@@ -289,13 +434,13 @@ export class DocumentExporter {
               yPos = 20;
             }
 
-            doc.setFontSize(12); // Raleway font size 12
+            doc.setFontSize(12);
             doc.setTextColor(0, 0, 0);
 
             const cleanLine = textLines[i].trim();
             if (cleanLine) {
               doc.text(cleanLine, 25, yPos);
-              yPos += 10; // Good line spacing to prevent overlap
+              yPos += 10;
             }
           }
 
@@ -307,7 +452,7 @@ export class DocumentExporter {
       yPos += 15;
     }
 
-    // Enhanced footer with table-like formatting
+    // Enhanced footer
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
@@ -344,33 +489,7 @@ export class DocumentExporter {
       day: 'numeric'
     });
 
-    // Add logo if available
-    if (options.logoPath || options.useDefaultLogo) {
-      try {
-        const logoPath = options.logoPath || this.defaultLogoPath;
-        if (fs.existsSync(logoPath)) {
-          const logoBuffer = await this.processImageForDOCX(logoPath);
-          content.push(
-            new Paragraph({
-              alignment: AlignmentType.CENTER,
-              children: [
-                new ImageRun({
-                  data: logoBuffer,
-                  transformation: {
-                    width: 200,
-                    height: 80,
-                  },
-                }),
-              ],
-            })
-          );
-        }
-      } catch (error) {
-        console.warn('Failed to add logo to DOCX:', error);
-      }
-    }
-
-    // Title
+    // Title (no logo for DOCX to avoid file system issues)
     content.push(
       new Paragraph({
         text: report.organizationName,
@@ -430,13 +549,6 @@ export class DocumentExporter {
     return content;
   }
 
-  private async processImageForDOCX(imagePath: string): Promise<Buffer> {
-    return await sharp(imagePath)
-      .resize(200, 80, { fit: 'inside', withoutEnlargement: true })
-      .png()
-      .toBuffer();
-  }
-
   private formatStakeholderAudience(stakeholders?: string[]): string {
     if (!stakeholders || stakeholders.length === 0) return '';
 
@@ -445,5 +557,41 @@ export class DocumentExporter {
 
     const lastStakeholder = stakeholders.pop();
     return stakeholders.join(', ') + ', and ' + lastStakeholder;
+  }
+
+  private async createDQLogoBuffer(): Promise<Buffer> {
+    // Create a simple DQ logo as SVG and convert to buffer
+    const svgLogo = `
+      <svg width="100" height="50" xmlns="http://www.w3.org/2000/svg">
+        <rect width="100" height="50" fill="#2563eb" rx="5"/>
+        <text x="50" y="32" font-family="Arial, sans-serif" font-size="18" font-weight="bold" 
+              text-anchor="middle" fill="white">DQ</text>
+        <text x="50" y="45" font-family="Arial, sans-serif" font-size="8" 
+              text-anchor="middle" fill="white">LOGO</text>
+      </svg>
+    `;
+
+    return Buffer.from(svgLogo, 'utf-8');
+  }
+
+  private getDefaultLogoPath(): string {
+    // Try multiple possible locations for the default logo
+    const possiblePaths = [
+      path.join(__dirname, '../../../Logo.png'),
+      path.join(__dirname, '../../Logo.png'),
+      path.join(process.cwd(), 'Logo.png'),
+      path.join(__dirname, '../../../frontend/src/assets/dq-logo.png'),
+      path.join(__dirname, '../../../backend/public/assets/dq-logo.png')
+    ];
+
+    for (const logoPath of possiblePaths) {
+      if (fs.existsSync(logoPath)) {
+        console.log(`Found default logo at: ${logoPath}`);
+        return logoPath;
+      }
+    }
+
+    console.warn('Default logo not found in any expected location');
+    return '';
   }
 }
