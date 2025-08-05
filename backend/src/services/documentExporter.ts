@@ -28,127 +28,77 @@ export class DocumentExporter {
   }
 
   private async generateDOCX(report: GeneratedReport, options: ExportOptions): Promise<Buffer> {
-    const currentDate = new Date().toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    console.log('📄 Generating DOCX document...');
 
-    // Create header with logo
-    const headerChildren: any[] = [];
+    try {
+      const currentDate = new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
 
-    // Add logo to header if specified
-    if (options.useDefaultLogo) {
-      try {
-        // Try to use the actual DQ logo from the project
-        const defaultLogoPath = this.getDefaultLogoPath();
-        if (defaultLogoPath) {
-          const logoBuffer = fs.readFileSync(defaultLogoPath);
-          headerChildren.push(
-            new Paragraph({
-              children: [
-                new ImageRun({
-                  data: logoBuffer,
-                  transformation: {
-                    width: 100,
-                    height: 50,
-                  },
-                }),
-              ],
-              alignment: AlignmentType.CENTER,
-            })
-          );
-        } else {
-          // Fallback to SVG logo
-          headerChildren.push(
-            new Paragraph({
-              children: [
-                new ImageRun({
-                  data: await this.createDQLogoBuffer(),
-                  transformation: {
-                    width: 100,
-                    height: 50,
-                  },
-                }),
-              ],
-              alignment: AlignmentType.CENTER,
-            })
-          );
-        }
-      } catch (error) {
-        console.warn('Failed to load default DQ logo for DOCX, using text fallback:', error);
-        // Add text placeholder instead
-        headerChildren.push(
+      // Simplified DOCX generation without complex headers/footers to avoid issues
+      const content: any[] = [];
+
+      // Add logo at the top of the document content 
+      // Note: Using text placeholders for logos in DOCX to ensure compatibility
+      // Future enhancement: Implement proper ImageRun handling with better error recovery
+      if (options.useDefaultLogo) {
+        content.push(
           new Paragraph({
-            text: "DQ LOGO",
+            text: "🏢 DQ LOGO",
+            alignment: AlignmentType.CENTER,
+          })
+        );
+      } else if (options.logoPath) {
+        content.push(
+          new Paragraph({
+            text: "🖼️ [CUSTOM LOGO]",
             alignment: AlignmentType.CENTER,
           })
         );
       }
-    } else if (options.logoPath && fs.existsSync(options.logoPath)) {
-      try {
-        const logoBuffer = fs.readFileSync(options.logoPath);
-        headerChildren.push(
-          new Paragraph({
-            children: [
-              new ImageRun({
-                data: logoBuffer,
-                transformation: {
-                  width: 100,
-                  height: 50,
-                },
-              }),
-            ],
-            alignment: AlignmentType.CENTER,
-          })
-        );
-      } catch (error) {
-        console.warn('Failed to add custom logo to DOCX:', error);
-        // Add text placeholder instead
-        headerChildren.push(
-          new Paragraph({
-            text: "[CUSTOM LOGO]",
-            alignment: AlignmentType.CENTER,
-          })
-        );
-      }
-    }
 
-    // Create footer with stakeholder audience
-    const footerChildren: any[] = [
-      new Paragraph({
-        text: `Generated on ${currentDate} by AI DocWriter 4.0`,
-        alignment: AlignmentType.CENTER,
-      })
-    ];
+      // Add document content
+      const documentContent = await this.generateDOCXContent(report, options);
+      content.push(...documentContent);
 
-    if (options.stakeholderAudience && options.stakeholderAudience.length > 0) {
-      footerChildren.push(
+      // Add footer information at the end of the document
+      content.push(
         new Paragraph({
-          text: `Stakeholder Audience: ${this.formatStakeholderAudience(options.stakeholderAudience)}`,
+          text: "",
+        }), // Empty line
+        new Paragraph({
+          text: `Generated on ${currentDate} by AI DocWriter 4.0`,
           alignment: AlignmentType.CENTER,
         })
       );
+
+      if (options.stakeholderAudience && options.stakeholderAudience.length > 0) {
+        content.push(
+          new Paragraph({
+            text: `Stakeholder Audience: ${this.formatStakeholderAudience(options.stakeholderAudience)}`,
+            alignment: AlignmentType.CENTER,
+          })
+        );
+      }
+
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: content
+        }]
+      });
+
+      console.log('📄 Converting DOCX to buffer...');
+      const buffer = await Packer.toBuffer(doc);
+      console.log('✅ DOCX generation successful');
+      return buffer;
+
+    } catch (error) {
+      console.error('❌ DOCX generation failed:', error);
+      throw new Error(`DOCX generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    const doc = new Document({
-      sections: [{
-        properties: {},
-        headers: headerChildren.length > 0 ? {
-          default: new Header({
-            children: headerChildren,
-          }),
-        } : undefined,
-        footers: {
-          default: new Footer({
-            children: footerChildren,
-          }),
-        },
-        children: await this.generateDOCXContent(report, options)
-      }]
-    });
-
-    return await Packer.toBuffer(doc);
   }
 
   private async generateSimplePDF(report: GeneratedReport, options: ExportOptions): Promise<Buffer> {

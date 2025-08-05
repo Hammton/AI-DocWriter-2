@@ -597,10 +597,17 @@ app.post('/api/reports/:sessionId/:reportId/export', logoUpload.single('customLo
       exportOptions.logoPath = req.file.path;
     }
 
-    console.log(`Exporting ${format.toUpperCase()} for report: ${report.title}`);
-    console.log('Export options:', exportOptions);
+    console.log(`🚀 Exporting ${format.toUpperCase()} for report: ${report.title}`);
+    console.log('📋 Export options:', exportOptions);
 
-    const documentBuffer = await exporter.exportDocument(report, exportOptions);
+    let documentBuffer: Buffer;
+    try {
+      documentBuffer = await exporter.exportDocument(report, exportOptions);
+      console.log(`✅ ${format.toUpperCase()} generation successful, buffer size: ${documentBuffer.length} bytes`);
+    } catch (exportError) {
+      console.error(`❌ ${format.toUpperCase()} generation failed:`, exportError);
+      throw new Error(`${format.toUpperCase()} generation failed: ${exportError instanceof Error ? exportError.message : 'Unknown error'}`);
+    }
 
     const fileExtension = format === 'pdf' ? 'pdf' : 'docx';
     const mimeType = format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
