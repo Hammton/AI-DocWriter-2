@@ -48,10 +48,28 @@ export class DocumentExporter {
   }
 
   private replaceContentPlaceholders(content: string, applicationData: any): string {
-    return content
+    console.log('🔍 Before placeholder replacement:', {
+      contentLength: content.length,
+      hasAppName: content.includes('{application_name}'),
+      hasOrgName: content.includes('{organization_name}'),
+      hasAppId: content.includes('{application_id}'),
+      applicationData
+    });
+
+    const processedContent = content
       .replace(/\{application_name\}/g, applicationData.applicationName || 'Application Name')
       .replace(/\{organization_name\}/g, applicationData.organizationName || 'Organization Name')
       .replace(/\{application_id\}/g, applicationData.applicationId || 'Application ID');
+
+    console.log('🔍 After placeholder replacement:', {
+      contentLength: processedContent.length,
+      hasAppName: processedContent.includes('{application_name}'),
+      hasOrgName: processedContent.includes('{organization_name}'),
+      hasAppId: processedContent.includes('{application_id}'),
+      replacementsMade: content !== processedContent
+    });
+
+    return processedContent;
   }
 
   private async generatePDF(report: GeneratedReport, options: ExportOptions): Promise<Buffer> {

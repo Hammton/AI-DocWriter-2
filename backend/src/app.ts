@@ -484,7 +484,7 @@ app.post('/api/upload-logo', logoUpload.single('logo'), (req, res) => {
   }
 });
 
-// Image upload endpoint for report sections
+// Image upload endpoint for report sections (Vercel compatible)
 app.post('/api/upload-image', imageUpload.single('image'), (req, res) => {
   console.log('🖼️ Image upload endpoint called');
   console.log('Request body:', req.body);
@@ -506,39 +506,73 @@ app.post('/api/upload-image', imageUpload.single('image'), (req, res) => {
       return res.status(400).json({ error: 'Missing required parameters: sessionId, reportId, or sectionTitle' });
     }
 
-    // Create a unique filename to avoid conflicts
-    const timestamp = Date.now();
-    const fileExtension = path.extname(file.originalname);
-    const uniqueFilename = `${sessionId}_${reportId}_${timestamp}${fileExtension}`;
+    // Check if running in serverless environment (Vercel)
+    const isServerless = process.env.VERCEL === '1' || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 
-    console.log('Generated unique filename:', uniqueFilename);
+    if (isServerless) {
+      console.log('🌐 Running in serverless environment - using temporary file approach');
 
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = path.join(__dirname, '../public/uploads/images');
-    console.log('Uploads directory path:', uploadsDir);
+      // In serverless environments, we can't create permanent directories
+      // Instead, we'll convert the image to base64 and embed it directly
+      const imageBuffer = fs.readFileSync(file.path);
+      const base64Image = imageBuffer.toString('base64');
+      const mimeType = file.mimetype;
 
-    if (!fs.existsSync(uploadsDir)) {
-      console.log('Creating uploads directory...');
-      fs.mkdirSync(uploadsDir, { recursive: true });
+      // Create data URL for the image
+      const imageUrl = `data:${mimeType};base64,${base64Image}`;
+
+      console.log(`✅ Image processed successfully (base64): ${file.originalname}`);
+
+      // Clean up temporary file
+      try {
+        fs.unlinkSync(file.path);
+      } catch (cleanupError) {
+        console.warn('Failed to clean up temporary file:', cleanupError);
+      }
+
+      return res.json({
+        message: 'Image uploaded successfully',
+        imageUrl,
+        filename: file.originalname,
+        size: file.size
+      });
+    } else {
+      console.log('💻 Running in local environment - using file system approach');
+
+      // Create a unique filename to avoid conflicts
+      const timestamp = Date.now();
+      const fileExtension = path.extname(file.originalname);
+      const uniqueFilename = `${sessionId}_${reportId}_${timestamp}${fileExtension}`;
+
+      console.log('Generated unique filename:', uniqueFilename);
+
+      // Create uploads directory if it doesn't exist (local development only)
+      const uploadsDir = path.join(__dirname, '../public/uploads/images');
+      console.log('Uploads directory path:', uploadsDir);
+
+      if (!fs.existsSync(uploadsDir)) {
+        console.log('Creating uploads directory...');
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      // Move file to permanent location
+      const permanentPath = path.join(uploadsDir, uniqueFilename);
+      console.log('Moving file from', file.path, 'to', permanentPath);
+
+      fs.renameSync(file.path, permanentPath);
+
+      // Create URL for the image - use relative URL for local development
+      const imageUrl = `/uploads/images/${uniqueFilename}`;
+
+      console.log(`✅ Image uploaded successfully: ${file.originalname} -> ${imageUrl}`);
+
+      return res.json({
+        message: 'Image uploaded successfully',
+        imageUrl,
+        filename: file.originalname,
+        size: file.size
+      });
     }
-
-    // Move file to permanent location
-    const permanentPath = path.join(uploadsDir, uniqueFilename);
-    console.log('Moving file from', file.path, 'to', permanentPath);
-
-    fs.renameSync(file.path, permanentPath);
-
-    // Create URL for the image - use absolute URL that works in iframe
-    const imageUrl = `http://localhost:3001/uploads/images/${uniqueFilename}`;
-
-    console.log(`✅ Image uploaded successfully: ${file.originalname} -> ${imageUrl}`);
-
-    return res.json({
-      message: 'Image uploaded successfully',
-      imageUrl,
-      filename: file.originalname,
-      size: file.size
-    });
 
   } catch (error) {
     console.error('❌ Error uploading image:', error);
@@ -672,6 +706,13 @@ DO NOT REPLACE {application_name} with "${applicationData.applicationName}"
 DO NOT REPLACE {organization_name} with "${applicationData.organizationName}"  
 DO NOT REPLACE {application_id} with "${applicationData.applicationId}"
 KEEP ALL CURLY BRACE PLACEHOLDERS EXACTLY AS THEY ARE.
+
+🔒 PLACEHOLDER PRESERVATION RULES:
+- If you see {application_name} in the content, keep it as {application_name}
+- If you see {organization_name} in the content, keep it as {organization_name}
+- If you see {application_id} in the content, keep it as {application_id}
+- These are template variables that will be replaced during export
+- NEVER substitute these placeholders with actual values
 
 Section: ${sectionTitle}
 Application Context: ${applicationData.applicationName} (${applicationData.organizationName})
